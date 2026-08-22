@@ -1,0 +1,11 @@
+一级分类（level=1, parentId=0）
+├── 电子产品
+│   ├── 手机（level=2, parentId=电子产品ID）
+│   │   ├── 智能手机（level=3, parentId=手机ID）
+│   │   └── 老人机（level=3, parentId=手机ID）
+│   ├── 电脑（level=2, parentId=电子产品ID）
+│   │   ├── 笔记本（level=3, parentId=电脑ID）
+│   │   └── 台式机（level=3, parentId=电脑ID）
+├── 服装
+│   ├── 男装（level=2, parentId=服装ID）
+│   ├── 女装（level=2, parentId=服装ID）

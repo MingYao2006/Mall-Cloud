@@ -1,0 +1,72 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: mall-product-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+        username: nacos
+        password: nacos
+      config:
+        server-addr: localhost:8848
+        file-extension: yml
+        username: nacos
+        password: nacos
+        import-check:
+          enabled: false
+    sentinel:
+      transport:
+        dashboard: localhost:8086
+        port: 8721
+      eager: true
+      datasource:
+        flow:
+          nacos:
+            server-addr: localhost:8848
+            username: nacos
+            password: nacos
+            data-id: ${spring.application.name}-flow-rules
+            group-id: SENTINEL_GROUP
+            data-type: json
+            rule-type: flow
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/mall?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
+    listener:
+      simple:
+        acknowledge-mode: auto
+        prefetch: 1
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+
+knife4j:
+  enable: true
+
+# 开启 Feign 对 Sentinel 的支持
+feign:
+  sentinel:
+    enabled: true
+
+logging:
+  level:
+    com.mall.product: debug

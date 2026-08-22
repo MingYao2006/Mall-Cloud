@@ -1,0 +1,30 @@
+# Bootstrap 配置文件
+# Spring Cloud Alibaba Nacos Config 必须在 bootstrap 阶段加载配置
+spring:
+  application:
+    name: mall-project
+  profiles:
+    active: dev
+  config:
+    import:
+      - optional:nacos:mall-project-dev-redis.yaml?server-addr=localhost:8848&namespace=public&group=DEFAULT_GROUP&refreshEnabled=true
+  cloud:
+    nacos:
+      # Nacos 配置中心
+      config:
+        server-addr: localhost:8848
+        namespace: public  # 命名空间ID（public 命名空间）
+        group: DEFAULT_GROUP
+        file-extension: yaml
+        refresh-enabled: true  # 开启配置热更新
+        # 扩展配置 - 加载 Redis 主从配置
+        extension-configs:
+          - data-id: mall-project-dev-redis.yaml
+            group: DEFAULT_GROUP
+            refresh: true
+      # Nacos 服务发现
+      discovery:
+        server-addr: localhost:8848
+        namespace: public  # 命名空间ID（public 命名空间）
+        group: DEFAULT_GROUP
+        register-enabled: true

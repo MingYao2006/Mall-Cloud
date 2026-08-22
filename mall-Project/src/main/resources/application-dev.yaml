@@ -1,0 +1,135 @@
+# 开发环境配置(本地开发)
+server:
+  port: ${SERVER_PORT:8081}
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: mall-project
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+        namespace: public  # 命名空间ID（public 命名空间）
+        # 服务元数据配置（用于负载均衡权重）
+        metadata:
+          version: v1.0
+          weight: 100
+  # 数据源配置
+#  datasource:
+#    driver-class-name: com.mysql.cj.jdbc.Driver
+#    url: jdbc:mysql://localhost:3306/mall?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+#    username: root
+#    password: 123456
+#    # 连接池配置
+#    hikari:
+#      minimum-idle: 5
+#      maximum-pool-size: 20
+#      connection-timeout: 30000
+#      idle-timeout: 600000
+#      max-lifetime: 1800000
+
+
+#  data:
+#    redis:
+#      # Redis 主从复制配置（一主两从）
+#      # 架构说明：同一台服务器上启动三个 Redis 实例
+#      # - 主节点：localhost:6379（负责写操作）
+#      # - 从节点1：localhost:6380（负责读操作）
+#      # - 从节点2：localhost:6381（负责读操作）
+#
+#      # 连接主节点（用于写操作）
+#      host: localhost
+#      port: 6379
+#      password: ${REDIS_PASSWORD:}  # Redis 密码（如有）
+#      timeout: 3000ms
+#
+#      # Lettuce 连接池配置
+#      lettuce:
+#        pool:
+#          max-active: 100    # 最大连接数
+#          max-idle: 50       # 最大空闲连接
+#          min-idle: 10       # 最小空闲连接
+#          max-wait: 3000ms   # 获取连接最大等待时间
+#        shutdown-timeout: 100ms
+#
+#
+#redisson:
+#  # Redis 主从复制配置（一主两从）
+#  # 架构说明：同一台服务器上启动三个 Redis 实例
+#  # - 主节点：localhost:6379（负责写操作）
+#  # - 从节点1：localhost:6380（负责读操作）
+#  # - 从节点2：localhost:6381（负责读操作）
+#
+#  master-slave-config:
+#    # 主节点地址
+#    master-address: redis://localhost:6379
+#    # 从节点地址列表（一主两从）
+#    slave-addresses:
+#      - redis://localhost:6380  # 从节点1
+#      - redis://localhost:6381  # 从节点2
+#    # 数据库索引（默认为0）
+#    database: 0
+#    # 密码（如有）
+#    password: ${REDIS_PASSWORD:}
+#    # 连接池配置
+#    master-connection-pool-size: 100
+#    slave-connection-pool-size: 100
+#    master-connection-minimum-idle-size: 10
+#    slave-connection-minimum-idle-size: 10
+#    # 超时配置
+#    connect-timeout: 10000
+#    timeout: 3000
+#    retry-attempts: 3
+#    retry-interval: 1500
+#    idle-connection-timeout: 10000
+#    # 读策略：优先从从节点读取
+#    read-mode: SLAVE
+#
+#  # 线程池配置
+#  threads: 16
+#  netty-threads: 32
+#  transport-mode: NIO
+
+  # JSON配置
+
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    serialization:
+      write-dates-as-timestamps: false
+
+# MyBatis配置
+mybatis:
+  # Mapper XML文件位置
+  mapper-locations: classpath:mapper/*.xml
+  # 实体类别名包路径
+  type-aliases-package: com.mall.entity
+  configuration:
+    # 开启驼峰命名转换
+    map-underscore-to-camel-case: true
+    # 开启二级缓存
+    cache-enabled: true
+    # 打印SQL日志
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# 日志配置
+#logging:
+#  level:
+#    com.mall: debug
+#    com.mall.mapper: debug
+#  pattern:
+#    console: '%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n'
+
+## 应用自定义配置
+#app:
+#  # JWT配置
+#  jwt:
+#    secret: mall-project-secret-key-2026
+#    expiration: 86400000  # 24小时（毫秒）
+  
+#  # 文件上传配置
+#  upload:
+#    path: D:/upload/mall/
+#    max-size: 10MB

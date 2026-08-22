@@ -1,0 +1,132 @@
+===============================================
+Redis 哨兵集群常用命令速查表
+===============================================
+
+【集群管理】
+# 启动集群
+docker-compose -f docker-redis-sentinel.yml up -d
+
+# 停止集群
+docker-compose -f docker-redis-sentinel.yml down
+
+# 重启集群
+docker-compose -f docker-redis-sentinel.yml restart
+
+# 查看集群状态
+docker-compose -f docker-redis-sentinel.yml ps
+
+# 查看日志
+docker-compose -f docker-redis-sentinel.yml logs -f
+
+【Redis 节点连接】
+# 连接主节点
+docker exec -it redis-master redis-cli
+
+# 连接从节点1
+docker exec -it redis-slave1 redis-cli
+
+# 连接从节点2
+docker exec -it redis-slave2 redis-cli
+
+# 连接哨兵节点1
+docker exec -it redis-sentinel1 redis-cli -p 26379
+
+【哨兵监控命令】
+# 查看主节点信息
+docker exec redis-sentinel1 redis-cli -p 26379 SENTINEL master mymaster
+
+# 查看从节点列表
+docker exec redis-sentinel1 redis-cli -p 26379 SENTINEL replicas mymaster
+
+# 查看其他哨兵节点
+docker exec redis-sentinel1 redis-cli -p 26379 SENTINEL sentinels mymaster
+
+# 获取当前主节点地址
+docker exec redis-sentinel1 redis-cli -p 26379 SENTINEL get-master-addr-by-name mymaster
+
+# 检查主节点状态
+docker exec redis-sentinel1 redis-cli -p 26379 SENTINEL ckquorum mymaster
+
+【故障转移测试】
+# 手动触发故障转移
+docker exec redis-sentinel1 redis-cli -p 26379 SENTINEL failover mymaster
+
+# 模拟主节点故障
+docker stop redis-master
+
+# 恢复主节点
+docker start redis-master
+
+# 查看故障转移日志
+docker logs redis-sentinel1 -f
+
+【主从复制信息】
+# 查看主节点复制信息
+docker exec redis-master redis-cli INFO replication
+
+# 查看从节点1复制信息
+docker exec redis-slave1 redis-cli INFO replication
+
+# 查看从节点2复制信息
+docker exec redis-slave2 redis-cli INFO replication
+
+【数据操作测试】
+# 在主节点写入数据
+docker exec redis-master redis-cli SET test_key "hello sentinel"
+
+# 从主节点读取数据
+docker exec redis-master redis-cli GET test_key
+
+# 从从节点1读取数据
+docker exec redis-slave1 redis-cli GET test_key
+
+# 从从节点2读取数据
+docker exec redis-slave2 redis-cli GET test_key
+
+【性能测试】
+# 测试写入性能
+docker exec redis-master redis-cli -r 10000 -t set,ping
+
+# 测试读取性能
+docker exec redis-slave1 redis-cli -r 10000 -t get,ping
+
+【数据备份】
+# 触发 RDB 快照
+docker exec redis-master redis-cli BGSAVE
+
+# 备份数据文件到本地
+docker cp redis-master:/data/dump.rdb ./backup/dump-$(date +%Y%m%d).rdb
+
+# 备份 AOF 文件
+docker cp redis-master:/data/appendonly.aof ./backup/appendonly-$(date +%Y%m%d).aof
+
+【监控命令】
+# 查看内存使用
+docker exec redis-master redis-cli INFO memory
+
+# 查看客户端连接
+docker exec redis-master redis-cli CLIENT LIST
+
+# 查看慢查询日志
+docker exec redis-master redis-cli SLOWLOG GET 10
+
+# 查看服务器统计信息
+docker exec redis-master redis-cli INFO stats
+
+【网络诊断】
+# 测试哨兵到主节点的连通性
+docker exec redis-sentinel1 ping redis-master
+
+# 测试哨兵到从节点的连通性
+docker exec redis-sentinel1 ping redis-slave1
+docker exec redis-sentinel1 ping redis-slave2
+
+【应用配置】
+# 使用哨兵模式启动应用
+java -jar mall-project.jar --spring.profiles.active=sentinel
+
+【Redis Commander 管理界面】
+# 访问地址
+http://localhost:8081
+
+===============================================

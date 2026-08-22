@@ -1,0 +1,100 @@
+#主配置文件
+server:
+  port: 8080
+
+spring:
+  application:
+    name: mall-project
+  config:
+    import:
+      # 从 Nacos 加载 MySQL 配置（public 命名空间）
+      - optional:nacos:mall-project-dev-mysql.yaml?server-addr=localhost:8848&namespace=public&group=DEFAULT_GROUP&refreshEnabled=true&username=nacos&password=nacos
+      # 从 Nacos 加载 Redis 配置（public 命名空间）
+      - optional:nacos:mall-project-dev-redis.yaml?server-addr=localhost:8848&namespace=public&group=DEFAULT_GROUP&refreshEnabled=true&username=nacos&password=nacos
+      # 从 Nacos 加载 Knife4j 配置（public 命名空间）
+      - optional:nacos:mall-project-knife4j.yaml?server-addr=localhost:8848&namespace=public&group=DEFAULT_GROUP&refreshEnabled=true&username=nacos&password=nacos
+      # 从 Nacos 加载应用配置（public 命名空间）
+      - optional:nacos:mall-project-dev-app.yaml?server-addr=localhost:8848&namespace=public&group=DEFAULT_GROUP&refreshEnabled=true&username=nacos&password=nacos
+      # 从 Nacos 加载日志配置（public 命名空间）
+      - optional:nacos:mall-project-dev-logging.yaml?server-addr=localhost:8848&namespace=public&group=DEFAULT_GROUP&refreshEnabled=true&username=nacos&password=nacos
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848  # Nacos 服务器地址
+        namespace: public  # 命名空间ID
+        group: DEFAULT_GROUP  # 分组
+        register-enabled: true
+        username: nacos  # Nacos 用户名
+        password: nacos  # Nacos 密码
+        heartbeat:
+          interval: 5000  # 5秒发送一次心跳
+          interval-timeout: 2000
+      config:
+        server-addr: localhost:8848
+        namespace: public  # 命名空间ID（public 命名空间）
+        group: DEFAULT_GROUP
+        username: nacos  # Nacos 用户名
+        password: nacos  # Nacos 密码
+        file-extension: yaml
+        refresh-enabled: true  # 开启配置热更新
+        import-check:
+          enabled: false  # 禁用配置导入检查
+        # 扩展配置 - 加载所有配置文件
+        extension-configs:
+          - data-id: mall-project-dev-mysql.yaml
+            group: DEFAULT_GROUP
+            refresh: true
+          - data-id: mall-project-dev-redis.yaml
+            group: DEFAULT_GROUP
+            refresh: true
+          - data-id: mall-project-knife4j.yaml
+            group: DEFAULT_GROUP
+            refresh: true
+          - data-id: mall-project-dev-app.yaml
+            group: DEFAULT_GROUP
+            refresh: true
+          - data-id: mall-project-dev-logging.yaml
+            group: DEFAULT_GROUP
+            refresh: true
+  profiles:
+    active: dev
+
+# 日志配置 - 屏蔽 Nacos 心跳日志
+logging:
+  level:
+    com.alibaba.nacos: WARN
+    com.alibaba.nacos.client.naming: WARN
+    com.alibaba.nacos.client.config: WARN
+    org.springframework.cloud.bootstrap: INFO
+
+
+#logging:
+#  level:
+#    com.mall: debug
+#  pattern:
+#    dateformat: HH:mm:ss:SSS
+#  file:
+#    path: "logs/${spring.application.name}"
+
+#knife4j:
+#  enable: true
+#  openapi:
+#    title: 商城接口文档
+#    description: "商城系统接口文档"
+#    email: admin@mall.com
+#    concat: 管理员
+#    url: https://www.mall.com
+#    version: v1.0.0
+#    group:
+#      default:
+#        group-name: default
+#        api-rule: package
+#        api-rule-resources:
+#          - com.mall.controller
+
+#  auth:
+#    excludePaths:
+#      - /products/**
+#      - /users/login
+#      - /categories/**
+#      - /search/**

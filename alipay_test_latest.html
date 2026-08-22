@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>支付宝沙箱支付</title>
+</head>
+<body>
+    <p>正在跳转到支付宝沙箱支付页面，请稍候……</p>
+
+    <form name="punchout_form" method="post" action="https://openapi-sandbox.dl.alipaydev.com/gateway.do?charset=UTF-8&amp;method=alipay.trade.page.pay&amp;sign=nJoh1fCh%2BtX%2FVuQv%2FY%2BxE%2BPyOqgNq2nor9lljkq7dPFVzJHpe5h2j2wS3I3iDtvdYFXxbRbrPAWSdAgLZjUsqPvAeahe112RG1QQRkKCOeB1fjfjqqB0naWCqIN%2ByXR21P3Y6kvaPIj1GXzdaaGzGRERSTh9dHVaSmn4bZ60hImpuC3ISoO85zFa2q0IOfLUp2aJ02RU9A5LkT2Nkvyt2hooZzcM72H9NL1uoVVb%2B8GclKEyBfp9raBi4PzVOBHfOT59qxa0i8f%2F0ORolOYMwKht5eOCoVgQv7fPERukeg8w8kI7y%2FCbozZ8Ealy%2BfJY7dDB9onDbAX8q8GQsMU%2FIA%3D%3D&amp;return_url=http%3A%2F%2Flocalhost%3A8080%2Fpay-result.html&amp;notify_url=https%3A%2F%2Fimpulse-mammary-worst.ngrok-free.dev%2Fapi%2Fpayment%2Falipay%2Fnotify&amp;version=1.0&amp;app_id=9021000167605065&amp;sign_type=RSA2&amp;timestamp=2026-08-20+12%3A37%3A30&amp;alipay_sdk=alipay-sdk-java-4.38.157.ALL&amp;format=json">
+        <input type="hidden" name="biz_content" value="{&quot;out_trade_no&quot;:&quot;PAY202608201237300001&quot;,&quot;total_amount&quot;:0.01,&quot;subject&quot;:&quot;ORDER006&quot;,&quot;product_code&quot;:&quot;FAST_INSTANT_TRADE_PAY&quot;}">
+        <input type="submit" value="立即支付">
+    </form>
+
+    <script>
+        document.forms[0].submit();
+    </script>
+</body>
+</html>

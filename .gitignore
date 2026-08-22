@@ -1,0 +1,12 @@
+/pom.xml
+/readMe
+/redis主从集群的启动和停止命令.txt
+/项目启动流程.md
+.feisuan
+.idea/
+.vscode/
+node_modules/
+dist/
+build/
+target/
+/mall-payment-service/src/main/resources/application.yaml

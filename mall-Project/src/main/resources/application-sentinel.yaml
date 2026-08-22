@@ -1,0 +1,120 @@
+# 哨兵模式配置文件
+# 使用方法：启动时指定 --spring.profiles.active=sentinel
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  # 数据源配置
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/mall?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  data:
+    redis:
+      # Redis 哨兵模式配置
+      # 架构说明：一主两从三哨兵
+      # - 主节点：由哨兵自动发现
+      # - 从节点：redis-slave1:6379, redis-slave2:6379
+      # - 哨兵节点：localhost:26379, localhost:26380, localhost:26381
+      
+      # 哨兵配置
+      sentinel:
+        # 主节点名称（与 sentinel.conf 中配置的 master-name 一致）
+        master: mymaster
+        # 哨兵节点列表
+        nodes:
+          - localhost:26379
+          - localhost:26380
+          - localhost:26381
+        # 密码（如有）
+        password: ${REDIS_PASSWORD:}
+      
+      # 数据库索引
+      database: 0
+      # 连接超时
+      timeout: 3000ms
+      
+      # Lettuce 连接池配置
+      lettuce:
+        pool:
+          max-active: 100    # 最大连接数
+          max-idle: 50       # 最大空闲连接
+          min-idle: 10       # 最小空闲连接
+          max-wait: 3000ms   # 获取连接最大等待时间
+        shutdown-timeout: 100ms
+
+redisson:
+  # Redis 哨兵模式配置
+  # 架构说明：一主两从三哨兵
+  # - 主节点：由哨兵自动发现
+  # - 从节点：redis-slave1:6379, redis-slave2:6379
+  # - 哨兵节点：localhost:26379, localhost:26380, localhost:26381
+  
+  sentinel-config:
+    # 主节点名称（与 sentinel.conf 中配置的 master-name 一致）
+    master-name: mymaster
+    # 哨兵节点地址列表
+    sentinel-addresses:
+      - redis://localhost:26379
+      - redis://localhost:26380
+      - redis://localhost:26381
+    # 数据库索引（默认为0）
+    database: 0
+    # 密码（如有）
+    password: ${REDIS_PASSWORD:}
+    # 连接池配置
+    master-connection-pool-size: 100
+    slave-connection-pool-size: 100
+    master-connection-minimum-idle-size: 10
+    slave-connection-minimum-idle-size: 10
+    # 超时配置
+    connect-timeout: 10000
+    timeout: 3000
+    retry-attempts: 3
+    retry-interval: 1500
+    idle-connection-timeout: 10000
+    # 读策略：优先从从节点读取
+    read-mode: SLAVE
+  
+  # 线程池配置
+  threads: 16
+  netty-threads: 32
+  transport-mode: NIO
+
+# MyBatis配置
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.mall.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# 日志配置
+logging:
+  level:
+    com.mall: debug
+    com.mall.mapper: debug
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n'
+
+# 应用自定义配置
+app:
+  jwt:
+    secret: mall-project-secret-key-2026
+    expiration: 86400000
+  
+  upload:
+    path: D:/upload/mall/
+    max-size: 10MB

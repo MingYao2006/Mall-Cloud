@@ -1,0 +1,183 @@
+version: '3.8'
+
+# Redis 哨兵集群架构 Docker Compose 配置
+# 架构说明：
+# - 主节点（Master）：redis-master - 负责写操作
+# - 从节点1（Slave1）：redis-slave1 - 负责读操作
+# - 从节点2（Slave2）：redis-slave2 - 负责读操作
+# - 哨兵1（Sentinel1）：redis-sentinel1 - 监控和故障转移
+# - 哨兵2（Sentinel2）：redis-sentinel2 - 监控和故障转移
+# - 哨兵3（Sentinel3）：redis-sentinel3 - 监控和故障转移
+
+services:
+  # Redis 主节点
+  redis-master:
+    image: redis:7.2-alpine
+    container_name: redis-master
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis-config-sentinel/master/redis.conf:/etc/redis/redis.conf
+      - redis-master-data:/data
+      - redis-master-logs:/var/log/redis
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      redis-network:
+        ipv4_address: 172.30.0.10
+    environment:
+      - TZ=Asia/Shanghai
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Redis 从节点1
+  redis-slave1:
+    image: redis:7.2-alpine
+    container_name: redis-slave1
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - ./redis-config-sentinel/slave1/redis.conf:/etc/redis/redis.conf
+      - redis-slave1-data:/data
+      - redis-slave1-logs:/var/log/redis
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      redis-network:
+        ipv4_address: 172.30.0.11
+    environment:
+      - TZ=Asia/Shanghai
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Redis 从节点2
+  redis-slave2:
+    image: redis:7.2-alpine
+    container_name: redis-slave2
+    restart: unless-stopped
+    ports:
+      - "6381:6379"
+    volumes:
+      - ./redis-config-sentinel/slave2/redis.conf:/etc/redis/redis.conf
+      - redis-slave2-data:/data
+      - redis-slave2-logs:/var/log/redis
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      redis-network:
+        ipv4_address: 172.30.0.12
+    environment:
+      - TZ=Asia/Shanghai
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Redis 哨兵节点1
+  redis-sentinel1:
+    image: redis:7.2-alpine
+    container_name: redis-sentinel1
+    restart: unless-stopped
+    ports:
+      - "26379:26379"
+    volumes:
+      - ./redis-config-sentinel/sentinel1/sentinel.conf:/etc/redis/sentinel.conf
+      - redis-sentinel1-data:/data
+    command: redis-sentinel /etc/redis/sentinel.conf
+    networks:
+      redis-network:
+        ipv4_address: 172.30.0.13
+    environment:
+      - TZ=Asia/Shanghai
+    depends_on:
+      - redis-master
+      - redis-slave1
+      - redis-slave2
+
+  # Redis 哨兵节点2
+  redis-sentinel2:
+    image: redis:7.2-alpine
+    container_name: redis-sentinel2
+    restart: unless-stopped
+    ports:
+      - "26380:26379"
+    volumes:
+      - ./redis-config-sentinel/sentinel2/sentinel.conf:/etc/redis/sentinel.conf
+      - redis-sentinel2-data:/data
+    command: redis-sentinel /etc/redis/sentinel.conf
+    networks:
+      redis-network:
+        ipv4_address: 172.30.0.14
+    environment:
+      - TZ=Asia/Shanghai
+    depends_on:
+      - redis-master
+      - redis-slave1
+      - redis-slave2
+
+  # Redis 哨兵节点3
+  redis-sentinel3:
+    image: redis:7.2-alpine
+    container_name: redis-sentinel3
+    restart: unless-stopped
+    ports:
+      - "26381:26379"
+    volumes:
+      - ./redis-config-sentinel/sentinel3/sentinel.conf:/etc/redis/sentinel.conf
+      - redis-sentinel3-data:/data
+    command: redis-sentinel /etc/redis/sentinel.conf
+    networks:
+      redis-network:
+        ipv4_address: 172.30.0.15
+    environment:
+      - TZ=Asia/Shanghai
+    depends_on:
+      - redis-master
+      - redis-slave1
+      - redis-slave2
+
+  # Redis 管理工具（可选）
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis-commander
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis-master:6379,slave1:redis-slave1:6379,slave2:redis-slave2:6379
+    networks:
+      - redis-network
+    depends_on:
+      - redis-master
+      - redis-slave1
+      - redis-slave2
+
+networks:
+  redis-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16
+
+volumes:
+  redis-master-data:
+  redis-master-logs:
+  redis-slave1-data:
+  redis-slave1-logs:
+  redis-slave2-data:
+  redis-slave2-logs:
+  redis-sentinel1-data:
+  redis-sentinel2-data:
+  redis-sentinel3-data:

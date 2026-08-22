@@ -1,0 +1,83 @@
+#生产环境配置（服务器部署）
+server:
+  port: 8080
+
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 192.168.152.100:8848
+        namespace: prod  # 生产环境命名空间
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://192.168.24.128:3306/mall?useUnicode=true&characterEncoding=utf-8&useSSL=true&serverTimezone=Asia/Shanghai
+    username: root
+    password:
+    hikari:
+      minimum-idle: 10
+      maximum-pool-size: 50
+
+  data:
+    redis:
+      # Redis 主从复制配置（一主两从 - 生产环境）
+      # 架构说明：同一台服务器上启动三个 Redis 实例
+      # - 主节点：localhost:6379（负责写操作）
+      # - 从节点1：localhost:6380（负责读操作）
+      # - 从节点2：localhost:6381（负责读操作）
+      
+      # 连接主节点（用于写操作）
+      host: localhost
+      port: 6379
+      password: ${REDIS_PASSWORD:}  # Redis 密码（如有）
+      timeout: 5000ms
+      
+      # Lettuce 连接池配置（生产环境）
+      lettuce:
+        pool:
+          max-active: 200    # 生产环境增大连接池
+          max-idle: 100
+          min-idle: 20
+          max-wait: 5000ms
+        shutdown-timeout: 100ms
+
+redisson:
+  # Redis 主从复制配置（一主两从 - 生产环境）
+  # 架构说明：同一台服务器上启动三个 Redis 实例
+  # - 主节点：localhost:6379（负责写操作）
+  # - 从节点1：localhost:6380（负责读操作）
+  # - 从节点2：localhost:6381（负责读操作）
+  
+  master-slave-config:
+    # 主节点地址
+    master-address: redis://localhost:6379
+    # 从节点地址列表（一主两从）
+    slave-addresses:
+      - redis://localhost:6380  # 从节点1
+      - redis://localhost:6381  # 从节点2
+    # 数据库索引（默认为0）
+    database: 0
+    # 密码（如有）
+    password: ${REDIS_PASSWORD:}
+    # 连接池配置（生产环境）
+    master-connection-pool-size: 200
+    slave-connection-pool-size: 200
+    master-connection-minimum-idle-size: 20
+    slave-connection-minimum-idle-size: 20
+    # 超时配置
+    connect-timeout: 10000
+    timeout: 5000
+    retry-attempts: 3
+    retry-interval: 1500
+    idle-connection-timeout: 10000
+    # 读策略：优先从从节点读取
+    read-mode: SLAVE
+  
+  # 线程池配置（生产环境）
+  threads: 32
+  netty-threads: 64
+  transport-mode: NIO
+
+logging:
+  level:
+    com.mall: info  # 生产环境降低日志级别
+
