@@ -14,6 +14,7 @@ import java.util.Date;
 @Service
 //todo token创建与识别
 public class JwtUtil {
+//
 
     private static final String SECRET = "mall-project-secret-key-2026-for-jwt-token-generation";
     private static final long EXPIRATION = 86400000; // 24小时

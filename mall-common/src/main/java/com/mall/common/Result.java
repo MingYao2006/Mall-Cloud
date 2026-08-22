@@ -4,7 +4,7 @@ import lombok.Data;
 
 //todo 设置统一结果类
 
-
+//
 @Data
 public class Result<T> {
     private Integer code;

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice // 全局异常处理器，自动捕获所有 Controller 抛出的异常
 @Slf4j // Lombok 注解，自动生成 log 日志对象
 public class GlobalExceptionHandler { // 全局异常处理器类
-    
+//
     /**
      * 处理参数校验异常（@Valid）
      * 当使用 @Valid 注解校验参数失败时，抛出 MethodArgumentNotValidException

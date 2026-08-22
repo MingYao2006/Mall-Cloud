@@ -1,7 +1,7 @@
 package com.mall.common;
 
 import java.util.List;
-
+//
 /**
  * 分页结果封装类
  */
