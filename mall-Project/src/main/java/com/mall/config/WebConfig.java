@@ -1,7 +1,5 @@
 package com.mall.config;
 
-import com.mall.interceptor.JwtInterceptor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
@@ -19,9 +17,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    @Autowired
-    private JwtInterceptor jwtInterceptor;
-
 
     @Bean
     @LoadBalanced  // 开启负载均衡，通过服务名调用
@@ -31,41 +26,11 @@ public class WebConfig implements WebMvcConfigurer {
 
     /**
      * 配置拦截器
+     * 注意：网关已统一处理 JWT 验签，下游服务不再需要 Token 拦截器
      */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(jwtInterceptor)
-                // 只拦截需要登录的路径
-                .addPathPatterns(
-                        "/users/**",          // 用户操作（info、password、avatar）
-                        "/orders/**",         // 订单操作
-                        "/cart/**",           // 购物车操作
-                        "/product/stock/**",  // 库存修改（需登录）
-                        "/product/publish/**",// 上下架（需登录）
-                        "/product/sales/**"   // 销量修改（需登录）
-                )
-                // 放行不需要登录的接口
-                .excludePathPatterns(
-                        // 用户模块 — 公开
-                        "/users/register",
-                        "/users/login",
-                        "/users/login/code",    // 验证码登录
-                        "/users/code",          // 发送验证码
-                        "/users/test",
-                        // 产品模块 — 公开浏览
-                        "/product/list",
-                        "/product/page",
-                        "/product/page/query",
-                        "/product/search",
-                        "/product/category/**",
-                        "/product/status/**",
-                        "/product/check/**",
-                        "/product/checkstock/**",
-                        "/product/{id:[0-9]+}",      // GET /product/123
-                        "/product/upload/image",
-                        // 分类模块 — 完全公开
-                        "/category/**"
-                );
+        // JWT 拦截器已移除，由网关统一验签并传递 X-User-Id
     }
 
     /**

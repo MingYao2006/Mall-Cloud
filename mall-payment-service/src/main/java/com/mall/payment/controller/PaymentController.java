@@ -1,7 +1,6 @@
 package com.mall.payment.controller;
 
 import com.mall.common.BusinessException;
-import com.mall.common.JwtUtil;
 import com.mall.common.Result;
 import com.mall.payment.dto.CreatePaymentRequest;
 import com.mall.payment.entity.Payment;
@@ -33,34 +32,26 @@ public class PaymentController {
      */
     @PostMapping("/create")
     public Result<Map<String, Object>> createPayment(@RequestBody @Valid CreatePaymentRequest request,
-                                                     @RequestHeader(value = "Authorization", required = false) String token) {
+                                                     @RequestHeader(value = "X-User-Id", required = false) String userIdHeader) {
         // 从 request 对象获取参数
         String finalOrderNo = request.getOrderNo();
         BigDecimal finalAmount = request.getAmount();
         Integer finalPaymentType = request.getPaymentType();
 
-        // 从 token 中获取 userId
+        // 从网关传递的请求头获取 userId
         Long userId = null;
-        if (token != null && !token.trim().isEmpty()) {
+        if (userIdHeader != null && !userIdHeader.trim().isEmpty()) {
             try {
-                // 移除 Bearer 前缀（如果有）
-                String actualToken = token.startsWith("Bearer ") ? token.substring(7) : token;
-                
-                // 验证 token 格式
-                if (actualToken.contains(".") && actualToken.split("\\.").length == 3) {
-                    if (JwtUtil.validateToken(actualToken)) {
-                        userId = JwtUtil.getUserIdFromToken(actualToken);
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Token 解析失败，使用默认用户ID", e);
+                userId = Long.parseLong(userIdHeader);
+            } catch (NumberFormatException e) {
+                log.warn("X-User-Id 格式错误: {}", userIdHeader);
             }
         }
         
-        // 如果 token 无效，使用默认用户ID（临时方案，实际生产环境应该拒绝请求）
+        // 如果请求头中没有用户ID，使用默认用户ID（临时方案，实际生产环境应该拒绝请求）
         if (userId == null) {
             userId = 1L; // 默认用户ID
-            log.warn("Token 无效或不存在，使用默认用户ID: 1");
+            log.warn("X-User-Id 不存在，使用默认用户ID: 1");
         }
         
         Long finalOrderId = request.getOrderId();
@@ -146,26 +137,13 @@ public class PaymentController {
     @PostMapping("/pay")
     public Result<?> pay(@RequestParam String orderId,
                          @RequestParam String payType,
-                         @RequestHeader(value = "Authorization", required = false) String token) {
-        // 验证 token 是否存在
-        if (token == null || token.trim().isEmpty()) {
+                         @RequestHeader(value = "X-User-Id", required = false) String userIdHeader) {
+        // 验证用户ID是否存在
+        if (userIdHeader == null || userIdHeader.trim().isEmpty()) {
             throw new BusinessException(401, "未登录，请先登录");
         }
         
-        // 移除 Bearer 前缀（如果有）
-        String actualToken = token.startsWith("Bearer ") ? token.substring(7) : token;
-        
-        // 验证 token 格式
-        if (!actualToken.contains(".") || actualToken.split("\\.").length != 3) {
-            throw new BusinessException(401, "Token 格式错误，请重新登录");
-        }
-        
-        // 验证 token 是否有效
-        if (!JwtUtil.validateToken(actualToken)) {
-            throw new BusinessException(401, "Token 已过期或无效，请重新登录");
-        }
-        
-        Long userId = JwtUtil.getUserIdFromToken(actualToken);
+        Long userId = Long.parseLong(userIdHeader);
         return Result.success("支付请求已接收，用户ID：" + userId);
     }
 
@@ -188,21 +166,4 @@ public class PaymentController {
         return "success";
     }
     
-    /**
-     * 生成测试 Token（仅用于测试环境）
-     */
-    @GetMapping("/test/token")
-    public Result<Map<String, Object>> generateTestToken(@RequestParam(defaultValue = "1") Long userId,
-                                                          @RequestParam(defaultValue = "testuser") String username) {
-        String token = JwtUtil.generateToken(userId, username);
-        Map<String, Object> data = new HashMap<>();
-        data.put("token", token);
-        data.put("userId", userId);
-        data.put("username", username);
-        data.put("expiresIn", "24小时");
-        data.put("usage", "在请求头中添加: Authorization: Bearer " + token);
-        
-        log.info("生成测试 token 成功，用户ID：{}", userId);
-        return Result.success(data);
-    }
 }

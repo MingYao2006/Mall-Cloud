@@ -1,0 +1,84 @@
+server:
+  port: 9000
+
+spring:
+  application:
+    name: mall-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+        username: nacos
+        password: nacos
+    gateway:
+      # 路由规则：根据路径前缀转发到对应微服务
+      routes:
+        - id: user-service
+          uri: lb://mall-user-service
+          predicates:
+            - Path=/api/user/**,/api/users/**
+          filters:
+            - StripPrefix=1
+
+        - id: product-service
+          uri: lb://mall-product-service
+          predicates:
+            - Path=/api/product/**
+          filters:
+            - StripPrefix=1
+
+        - id: order-service
+          uri: lb://mall-order-service
+          predicates:
+            - Path=/api/order/**
+          filters:
+            - StripPrefix=1
+
+        - id: cart-service
+          uri: lb://mall-cart-service
+          predicates:
+            - Path=/api/cart/**
+          filters:
+            - StripPrefix=1
+
+        - id: payment-service
+          uri: lb://mall-payment-service
+          predicates:
+            - Path=/api/payment/**
+          filters:
+            - StripPrefix=1
+
+        - id: seckill-service
+          uri: lb://mall-seckill-service
+          predicates:
+            - Path=/api/seckill/**
+          filters:
+            - StripPrefix=1
+
+        - id: category-service
+          uri: lb://mall-category-service
+          predicates:
+            - Path=/api/category/**
+          filters:
+            - StripPrefix=1
+
+        - id: coupon-service
+          uri: lb://mall-coupon-service
+          predicates:
+            - Path=/api/coupon/**
+          filters:
+            - StripPrefix=1
+
+        - id: comment-service
+          uri: lb://mall-comment-service
+          predicates:
+            - Path=/api/comment/**
+          filters:
+            - StripPrefix=1
+
+        - id: search-service
+          uri: lb://mall-search-service
+          predicates:
+            - Path=/api/search/**
+          filters:
+            - StripPrefix=1
