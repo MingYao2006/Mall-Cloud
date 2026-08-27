@@ -19,6 +19,7 @@ public class Product {
     
     private String mainImage;
     
+    @TableField("detail")
     private String description;
     
     private BigDecimal price;
