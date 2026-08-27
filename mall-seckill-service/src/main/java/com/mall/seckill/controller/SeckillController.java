@@ -73,8 +73,8 @@ public class SeckillController {
  * 限流处理方法
  * */
     public Result<String> handleSeckillBlock(
-            Long productId,
             Long userId,
+            Long couponId,
             BlockException ex
     ) {
         return Result.fail("当前排队人数过多，请稍后再试");
