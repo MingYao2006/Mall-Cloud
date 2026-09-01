@@ -46,7 +46,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { orderApi } from '@/api'
+import { orderApi, paymentApi } from '@/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const router = useRouter()
@@ -72,11 +72,39 @@ const loadOrders = async () => {
 
 const doPay = async (o) => {
   try {
-    await ElMessageBox.confirm('确认支付 ¥' + o.totalAmount?.toFixed(2), '支付确认', { type: 'info' })
-    await orderApi.pay(o.id)
-    ElMessage.success('支付成功')
-    loadOrders()
+    await ElMessageBox.confirm('将跳转到支付宝沙箱进行支付 ¥' + o.totalAmount?.toFixed(2), '支付确认', {
+      confirmButtonText: '去支付',
+      type: 'info'
+    })
+    // 调用支付宝支付接口
+    const res = await paymentApi.alipay(o.id, '订单-' + o.orderNo?.substring(0, 12))
+    if (res.data?.payForm) {
+      // 在新窗口中打开支付宝支付页面
+      const payWindow = window.open('', '_blank')
+      payWindow.document.write(res.data.payForm)
+      payWindow.document.close()
+      ElMessage.success('已打开支付页面，请在新窗口中完成支付')
+      // 轮询订单状态
+      pollOrderStatus(o.id)
+    }
   } catch (e) { if (e !== 'cancel') ElMessage.error('支付失败') }
+}
+
+const pollOrderStatus = async (orderId) => {
+  const maxAttempts = 30
+  let attempts = 0
+  const timer = setInterval(async () => {
+    attempts++
+    try {
+      const res = await orderApi.getDetail(orderId)
+      if (res.data?.status === 1) {
+        clearInterval(timer)
+        ElMessage.success('支付成功！')
+        loadOrders()
+      }
+    } catch (e) { /* ignore */ }
+    if (attempts >= maxAttempts) clearInterval(timer)
+  }, 2000)
 }
 
 const doCancel = async (o) => {

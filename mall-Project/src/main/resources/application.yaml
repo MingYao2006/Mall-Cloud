@@ -1,65 +1,42 @@
-#主配置文件
+#主配置文件 - 完全本地配置，不依赖 Nacos
 server:
-  port: 8080
+  port: 9090
+  servlet:
+    context-path: /api
 
 spring:
   application:
     name: mall-project
-  config:
-    import:
-      # 从 Nacos 加载 MySQL 配置（public 命名空间）
-      - optional:nacos:mall-project-dev-mysql.yaml?server-addr=localhost:8848&namespace=public&group=DEFAULT_GROUP&refreshEnabled=true&username=nacos&password=nacos
-      # 从 Nacos 加载 Redis 配置（public 命名空间）
-      - optional:nacos:mall-project-dev-redis.yaml?server-addr=localhost:8848&namespace=public&group=DEFAULT_GROUP&refreshEnabled=true&username=nacos&password=nacos
-      # 从 Nacos 加载 Knife4j 配置（public 命名空间）
-      - optional:nacos:mall-project-knife4j.yaml?server-addr=localhost:8848&namespace=public&group=DEFAULT_GROUP&refreshEnabled=true&username=nacos&password=nacos
-      # 从 Nacos 加载应用配置（public 命名空间）
-      - optional:nacos:mall-project-dev-app.yaml?server-addr=localhost:8848&namespace=public&group=DEFAULT_GROUP&refreshEnabled=true&username=nacos&password=nacos
-      # 从 Nacos 加载日志配置（public 命名空间）
-      - optional:nacos:mall-project-dev-logging.yaml?server-addr=localhost:8848&namespace=public&group=DEFAULT_GROUP&refreshEnabled=true&username=nacos&password=nacos
   cloud:
     nacos:
-      discovery:
-        server-addr: localhost:8848  # Nacos 服务器地址
-        namespace: public  # 命名空间ID
-        group: DEFAULT_GROUP  # 分组
-        register-enabled: true
-        username: nacos  # Nacos 用户名
-        password: nacos  # Nacos 密码
-        heartbeat:
-          interval: 5000  # 5秒发送一次心跳
-          interval-timeout: 2000
       config:
-        server-addr: localhost:8848
-        namespace: public  # 命名空间ID（public 命名空间）
-        group: DEFAULT_GROUP
-        username: nacos  # Nacos 用户名
-        password: nacos  # Nacos 密码
-        file-extension: yaml
-        refresh-enabled: true  # 开启配置热更新
+        enabled: false
         import-check:
-          enabled: false  # 禁用配置导入检查
-        # 扩展配置 - 加载所有配置文件
-        extension-configs:
-          - data-id: mall-project-dev-mysql.yaml
-            group: DEFAULT_GROUP
-            refresh: true
-          - data-id: mall-project-dev-redis.yaml
-            group: DEFAULT_GROUP
-            refresh: true
-          - data-id: mall-project-knife4j.yaml
-            group: DEFAULT_GROUP
-            refresh: true
-          - data-id: mall-project-dev-app.yaml
-            group: DEFAULT_GROUP
-            refresh: true
-          - data-id: mall-project-dev-logging.yaml
-            group: DEFAULT_GROUP
-            refresh: true
-  profiles:
-    active: dev
+          enabled: false
+      discovery:
+        server-addr: localhost:8848
+        namespace: public
+        group: DEFAULT_GROUP
+        register-enabled: true
+        username: nacos
+        password: nacos
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/mall?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
-# 日志配置 - 屏蔽 Nacos 心跳日志
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+
 logging:
   level:
     com.alibaba.nacos: WARN
@@ -67,34 +44,12 @@ logging:
     com.alibaba.nacos.client.config: WARN
     org.springframework.cloud.bootstrap: INFO
 
-
-#logging:
-#  level:
-#    com.mall: debug
-#  pattern:
-#    dateformat: HH:mm:ss:SSS
-#  file:
-#    path: "logs/${spring.application.name}"
-
-#knife4j:
-#  enable: true
-#  openapi:
-#    title: 商城接口文档
-#    description: "商城系统接口文档"
-#    email: admin@mall.com
-#    concat: 管理员
-#    url: https://www.mall.com
-#    version: v1.0.0
-#    group:
-#      default:
-#        group-name: default
-#        api-rule: package
-#        api-rule-resources:
-#          - com.mall.controller
-
-#  auth:
-#    excludePaths:
-#      - /products/**
-#      - /users/login
-#      - /categories/**
-#      - /search/**
+# 支付宝沙箱支付配置
+payment:
+  alipay:
+    app-id: 9021000167605065
+    private-key: MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCcpzXfB2sizTM2wifWrjhXa8wV907Qpk1VgOki+X84rPW1SH5DEsFQVLXOmmSnrbbgj/MDsXOwVosuJQVPqYeg4ZSPuq8VHXz/DIooRfztLofidTQuWrb7UPgEipZ8wcZidfVkvKkw1Tql1fbBe8WYSAqhdD76U/vOx0RmBRLUeA7Grv6CQuxMa1MMs8G8obFfFXArzR/tEPxg2ys37BARPks3tTg0gEs9u6IKHCVr2lLlM3JzHdUqAc7Cc3XY5qwvYrm/bcjVDT7uOPqJmNz1nkqrVWcwKhada1fKXneupKm54ZwQmsIPnQ0DiSlsU8t9eKrCfJDJAyDOkiqUiZrfAgMBAAECggEAPliiLSCDuDcY8es19dAi5lAlynxB5vK5BpWms9++jWzw4XR3o/Q78d+0+AQkmUOe7CL+YfLnC0B2ZigfxAPB0frVqJpxAiNZUxzHg53POwpw1GU3HlfGSaGBBDWwDPkGHru5rZ0UbTYAAG52pazACIpriLR+OBzis/pEs6HDS8HZF1iZH4Yvtm/lbnOYl1KDrDnRbA7okNl2nMmO0dRcU1HN5N+HykHE/Lus3I8+pb1cCRsLkdcjCbVx2uJH4O8TwMJiUjSTd7N9iyrhQr2sCeE8p0jSYQkUySdOWDwTnK8V1nHatUM2zwgCwxSxHte/YyRywZk/RhEzrdPfONAewQKBgQDMheXp+SgtLis3VL2yAfmX1Tf+Gwneyais6Hd0a4TKxeBlbVA1RSU8hWcSivCJ0/4yQJmI1FOtF2+pzRhGW5JEiij/Tc6SM1VfpkQDpOWmssRwi8zS1KERirx1Te7l5W52buX5ik1kupQkohO1OvF4lL1Va8+0HMpNoaeKqDoFvwKBgQDEFOWJ4WA+NETXHpCnfxvsrXLhMy4XrE3nbkJJ466xDfHBfR5KBpyAFguo9sNNu3zT6nthwTuWbpH92lqydNmiY4OQfU/4xCOldx9t0D8iXG9+T2pVYxaPpWnwxWopu0mW3m8dU5b8H67l5YrPF7Cu4ofJcoyfHvPbz+zrvuTy4QKBgA144H06EWBwgx5A8cHxCVzsCaUuaMcJJ5hEM+IyVuv4fuCPg9IOfPZwnyqEhnW9xifPQ43U1rI3Mf7QaMHxtD/ZjfvLR0kwInaLgD1xNkN10STMwLA+m2GJbwKXIJ56L32TrohyiMiS1cFX/85XVKKpwZMH6AWoQ9c7R8sFa9UHAoGAcZRRKb79CssoHRu9WuiL+lq2MrB8wIW0UpxRlY9nP3P+V7/r7aFKwf8DHgpiMwKpWe93LLbLl2XQ9ySmaLy63A+cw/NygXzL0Srhb7CzAWpdwuKpi3BsPyTn6unPhwDPra6G2ovy53RK0SxXbYIhfAwH766Euh8pzmfwqtXWtMECgYEAhD3VgYG9tHAkFbjURTmODH9b1V0ulNxtxzNiaW2R4stjDR1LDCkzdmDjeQcR9EbJa0rJK6M4z1zcu8ImKDYJAV6n9Y9Ecw3rLqvyWdHeEypnToN78iLwNdB4vMMcts+fG59cu+LgsBjNScuXMLcABedMyEXMH+wU3bDShMQXw9c=
+    alipay-public-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhg19LGAbSLHqWJXfUbMewRPHOVy81jpSh7CG4gePTIHCNOSJGe9xMM9xu4SL57GdoMztmfHskVZHPFQv4tqt1+zY5a5OgA45lcjB9bjtT9EtG19PIhGykbK1uPXd35dZk6epA89XAQ0gmr8Cfrb8eCDnRsgLJEM9RRi+cdcIkXl6oI/+piHzLnmKfRvzIEZB4KP4rpR/urtze0QWNGjfpsMuE52gDRkbAO0l5Sy4XKt03zwsL80SJ+HdNUqqAgXnBMTsQvnVgWQ+gbaykIJL3oqYP5q7C+i0TkagMScR6mEDjAins96H+/JBOZ2qhcHFSNZMMVVkgLG1C/JFnT+DMQIDAQAB
+    gateway-url: https://openapi-sandbox.dl.alipaydev.com/gateway.do
+    notify-url: http://localhost:9090/api/payment/alipay/notify
+    return-url: http://localhost:3000/pay-result

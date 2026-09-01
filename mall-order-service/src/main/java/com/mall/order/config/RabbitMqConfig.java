@@ -28,13 +28,13 @@ public class RabbitMqConfig {
     public static final String ORDER_CANCEL_ROUTING_KEY = "order.cancel.key";
 
 
+    public static final String ORDER_CANCEL_RESOURCE_EXCHANGE = "order.cancel.resource.exchange";
+    public static final String ORDER_CANCEL_RESOURCE_QUEUE = "order.cancel.resource.queue";
+    public static final String ORDER_CANCEL_RESOURCE_ROUTING_KEY = "order.cancel.resource.key";
+
     public static final String PAYMENT_SUCCESS_EXCHANGE = "payment.success.exchange";
     public static final String PAYMENT_SUCCESS_QUEUE = "payment.success.queue";
     public static final String PAYMENT_SUCCESS_ROUTING_KEY = "payment.success.key";
-
-    public static final String ORDER_CANCEL_RESOURCE_EXCHANGE = "order.cancel.exchange";
-    public static final String ORDER_CANCEL_RESOURCE_QUEUE = "order.cancel.quene";
-    public static final String ORDER_CANCEL_RESOURCE_ROUTING_KEY = "order.cancel.key";
 
 
     @Bean
@@ -102,6 +102,21 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public Exchange orderCancelResourceExchange() {
+        return ExchangeBuilder.directExchange(ORDER_CANCEL_RESOURCE_EXCHANGE).durable(true).build();
+    }
+
+    @Bean
+    public Queue orderCancelResourceQueue() {
+        return QueueBuilder.durable(ORDER_CANCEL_RESOURCE_QUEUE).build();
+    }
+
+    @Bean
+    public Binding orderCancelResourceBinding(Queue orderCancelResourceQueue, Exchange orderCancelResourceExchange) {
+        return BindingBuilder.bind(orderCancelResourceQueue).to(orderCancelResourceExchange).with(ORDER_CANCEL_RESOURCE_ROUTING_KEY).noargs();
+    }
+
+    @Bean
     public Exchange paymentSuccessExchange() {
         return ExchangeBuilder.topicExchange(PAYMENT_SUCCESS_EXCHANGE).durable(true).build();
     }
@@ -114,20 +129,5 @@ public class RabbitMqConfig {
     @Bean
     public Binding paymentSuccessBinding(Queue paymentSuccessQueue, Exchange paymentSuccessExchange) {
         return BindingBuilder.bind(paymentSuccessQueue).to(paymentSuccessExchange).with(PAYMENT_SUCCESS_ROUTING_KEY).noargs();
-    }
-
-    @Bean
-    public Exchange orderCancelResourceExchange() {
-        return ExchangeBuilder.directExchange(PAYMENT_SUCCESS_EXCHANGE).durable(true).build();
-    }
-
-    @Bean
-    public Queue orderCancelResourceQueue() {
-        return QueueBuilder.durable(PAYMENT_SUCCESS_QUEUE).build();
-    }
-
-    @Bean
-    public Binding orderCancelResourceBinding(Queue orderCancelResourceQueue, Exchange orderCancelResourceExchange) {
-        return BindingBuilder.bind(orderCancelResourceQueue).to(orderCancelResourceExchange).with(PAYMENT_SUCCESS_ROUTING_KEY).noargs();
     }
 }

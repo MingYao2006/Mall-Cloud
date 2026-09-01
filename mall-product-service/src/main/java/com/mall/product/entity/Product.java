@@ -1,6 +1,10 @@
 package com.mall.product.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -22,11 +26,13 @@ public class Product {
     /**
      * 商品名称
      */
+    @NotBlank(message = "商品名称不能为空")
     private String name;
 
     /**
      * 分类ID
      */
+    @NotNull(message = "商品分类不能为空")
     private Long categoryId;
 
     /**
@@ -47,16 +53,20 @@ public class Product {
     /**
      * 商品价格
      */
+    @NotNull(message = "商品价格不能为空")
+    @DecimalMin(value = "0.00", message = "商品价格不能为负数")
     private BigDecimal price;
 
     /**
      * 市场价
      */
+    @DecimalMin(value = "0.00", message = "商品原价不能为负数")
     private BigDecimal originalPrice;
 
     /**
      * 库存数量
      */
+    @Min(value = 0, message = "商品库存不能为负数")
     private Integer stock;
 
     /**

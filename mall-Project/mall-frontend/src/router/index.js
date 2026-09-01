@@ -52,6 +52,18 @@ const routes = [
     name: 'Coupon',
     component: () => import('@/views/Coupon.vue'),
     meta: { title: '优惠券秒杀', requiresAuth: true }
+  },
+  {
+    path: '/seckill',
+    name: 'Seckill',
+    component: () => import('@/views/Seckill.vue'),
+    meta: { title: '限时秒杀' }
+  },
+  {
+    path: '/pay-result',
+    name: 'PayResult',
+    component: () => import('@/views/PayResult.vue'),
+    meta: { title: '支付结果' }
   }
 ]
 

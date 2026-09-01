@@ -6,10 +6,22 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 @SpringBootApplication
-@ComponentScan(basePackages = "com.mall")
+@ComponentScan(basePackages = "com.mall",
+    excludeFilters = {
+        @ComponentScan.Filter(
+            type = FilterType.ASSIGNABLE_TYPE,
+            classes = com.mall.common.config.RedisConfig.class
+        ),
+        @ComponentScan.Filter(
+            type = FilterType.ASSIGNABLE_TYPE,
+            classes = com.mall.common.RedisService.class
+        )
+    }
+)
 @MapperScan("com.mall.mapper")
 @EnableTransactionManagement
 @EnableDiscoveryClient  // 启用服务发现

@@ -175,7 +175,7 @@ public class OrderService {
             }
 
             //调用openfeign服务
-            Result<Product> result = productServiceFeignClient.findById(cart.getId());
+            Result<Product> result = productServiceFeignClient.findById(cart.getProductId());
             Product product = result.getData();
 
             if (product == null) {
@@ -688,6 +688,32 @@ public class OrderService {
         // 6. 记录支付时间
         order.setPaymentTime(LocalDateTime.now());
         // 7. 记录更新时间
+        order.setUpdateTime(LocalDateTime.now());
+        orderMapper.updateById(order);
+    }
+
+    /**
+     * 根据订单ID查询订单实体
+     */
+    public Order getOrderById(Long orderId) {
+        if (orderId == null) return null;
+        return orderMapper.selectById(orderId);
+    }
+
+    /**
+     * 根据订单号支付订单（支付宝回调用）
+     */
+    @Transactional
+    public void payOrderByOrderNo(String orderNo) {
+        Order order = orderMapper.selectByOrderNo(orderNo);
+        if (order == null) {
+            throw new RuntimeException("订单不存在: " + orderNo);
+        }
+        if (order.getStatus() != 0) {
+            return; // 已支付，幂等处理
+        }
+        order.setStatus(1);
+        order.setPaymentTime(LocalDateTime.now());
         order.setUpdateTime(LocalDateTime.now());
         orderMapper.updateById(order);
     }

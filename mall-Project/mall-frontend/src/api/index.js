@@ -124,6 +124,20 @@ export const orderApi = {
   pay: (id) => request.put(`/orders/${id}/pay`)
 }
 
+export const paymentApi = {
+  // 支付宝支付 - 返回支付表单 HTML
+  alipay: (orderId, subject) => request.post('/payment/alipay/pay', { orderId, subject: subject || '商城订单' })
+}
+
+export const seckillApi = {
+  // 获取秒杀商品列表
+  getList: () => request.get('/seckill/list'),
+  // 获取秒杀商品详情
+  getDetail: (id) => request.get(`/seckill/${id}`),
+  // 执行秒杀
+  execute: (seckillId, userId) => request.post(`/seckill/${seckillId}`, null, { params: { userId } })
+}
+
 export const couponApi = {
   // 获取优惠券列表
   getList: () => request.get('/coupon/list'),

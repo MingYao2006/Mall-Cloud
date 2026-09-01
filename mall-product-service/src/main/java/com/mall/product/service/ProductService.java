@@ -3,7 +3,9 @@ package com.mall.product.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.mall.common.BusinessException;
 import com.mall.common.PageResult;
+import com.mall.common.RedisService;
 import com.mall.common.Result;
 import com.mall.product.entity.Product;
 import com.mall.product.entity.query.ProductQuery;
@@ -68,30 +70,30 @@ public class ProductService {
     public void add(Product product) {
         // 1. 校验商品名称
         if (product.getName() == null || product.getName().trim().isEmpty()) {
-            throw new RuntimeException("商品名称不能为空");
+            throw new BusinessException(400, "商品名称不能为空");
         }
 
         // 2. 校验分类是否存在
         if (product.getCategoryId() == null || categoryMapper.selectById(product.getCategoryId()) == null) {
-            throw new RuntimeException("商品分类不存在");
+            throw new BusinessException(400, "商品分类不存在");
         }
 
         // 3. 校验价格
         if (product.getPrice() == null || product.getPrice().compareTo(BigDecimal.ZERO) < 0) {
-            throw new RuntimeException("商品价格不能为空且不能为负数");
+            throw new BusinessException(400, "商品价格不能为空且不能为负数");
         }
 
         // 4. 校验原价
         if (product.getOriginalPrice() != null && product.getOriginalPrice().compareTo(BigDecimal.ZERO) < 0) {
-            throw new RuntimeException("商品原价不能为负数");
+            throw new BusinessException(400, "商品原价不能为负数");
         }
         if (product.getOriginalPrice() != null && product.getOriginalPrice().compareTo(product.getPrice()) < 0) {
-            throw new RuntimeException("商品原价不能小于售价");
+            throw new BusinessException(400, "商品原价不能小于售价");
         }
 
         // 5. 校验库存
         if (product.getStock() != null && product.getStock() < 0) {
-            throw new RuntimeException("商品库存不能为负数");
+            throw new BusinessException(400, "商品库存不能为负数");
         }
 
         // 6. 设置默认值
@@ -118,7 +120,7 @@ public class ProductService {
         // 8. 使用 MyBatis Plus 的 insert 方法
         int result = productMapper.insert(product);
         if (result <= 0) {
-            throw new RuntimeException("添加商品失败");
+            throw new BusinessException(500, "添加商品失败");
         }
 
         // 9. 清除商品列表缓存
@@ -132,41 +134,41 @@ public class ProductService {
     public void update(Product product) {
         // 1. 校验商品ID不为空
         if (product.getId() == null) {
-            throw new RuntimeException("商品ID不能为空");
+            throw new BusinessException(400, "商品ID不能为空");
         }
 
         // 2. 使用 MyBatis Plus 的 selectById 方法查询商品是否存在
         Product existProduct = productMapper.selectById(product.getId());
         if (existProduct == null) {
-            throw new RuntimeException("商品不存在");
+            throw new BusinessException(404, "商品不存在");
         }
 
         // 3. 校验商品名称
         if (product.getName() == null || product.getName().trim().isEmpty()) {
-            throw new RuntimeException("商品名称不能为空");
+            throw new BusinessException(400, "商品名称不能为空");
         }
 
         // 4. 校验分类是否存在
         if (product.getCategoryId() == null || categoryMapper.selectById(product.getCategoryId()) == null) {
-            throw new RuntimeException("商品分类不存在");
+            throw new BusinessException(400, "商品分类不存在");
         }
 
         // 5. 校验价格
         if (product.getPrice() == null || product.getPrice().compareTo(BigDecimal.ZERO) < 0) {
-            throw new RuntimeException("商品价格不能为空且不能为负数");
+            throw new BusinessException(400, "商品价格不能为空且不能为负数");
         }
 
         // 6. 校验原价
         if (product.getOriginalPrice() != null && product.getOriginalPrice().compareTo(BigDecimal.ZERO) < 0) {
-            throw new RuntimeException("商品原价不能为负数");
+            throw new BusinessException(400, "商品原价不能为负数");
         }
         if (product.getOriginalPrice() != null && product.getOriginalPrice().compareTo(product.getPrice()) < 0) {
-            throw new RuntimeException("商品原价不能小于售价");
+            throw new BusinessException(400, "商品原价不能小于售价");
         }
 
         // 7. 校验库存
         if (product.getStock() != null && product.getStock() < 0) {
-            throw new RuntimeException("商品库存不能为负数");
+            throw new BusinessException(400, "商品库存不能为负数");
         }
 
         // 8. 设置更新时间
@@ -175,7 +177,7 @@ public class ProductService {
         // 9. 使用 MyBatis Plus 的 updateById 方法
         int result = productMapper.updateById(product);
         if (result <= 0) {
-            throw new RuntimeException("更新商品失败");
+            throw new BusinessException(500, "更新商品失败");
         }
 
         // 10. 清除商品详情缓存、库存缓存和列表缓存
@@ -196,13 +198,13 @@ public class ProductService {
     public void delete(Long id) {
         // 1. 校验商品ID不为空
         if (id == null) {
-            throw new RuntimeException("商品ID不能为空");
+            throw new BusinessException(400, "商品ID不能为空");
         }
 
         // 2. 使用 MyBatis Plus 的 selectById 方法查询商品是否存在
         Product product = productMapper.selectById(id);
         if (product == null) {
-            throw new RuntimeException("商品不存在");
+            throw new BusinessException(404, "商品不存在");
         }
 
         // 3. 使用 MyBatis Plus 的 deleteById 方法（自动执行逻辑删除）
@@ -210,7 +212,7 @@ public class ProductService {
 
         // 4. 校验删除结果
         if (result <= 0) {
-            throw new RuntimeException("删除商品失败");
+            throw new BusinessException(500, "删除商品失败");
         }
 
         // 5. 清除商品详情缓存、库存缓存和列表缓存
@@ -230,7 +232,7 @@ public class ProductService {
     public Product findById(Long id) {
         // 第1层：参数校验
         if (id == null || id <= 0) {
-            throw new RuntimeException("商品ID不能为空");
+            throw new BusinessException(400, "商品ID不能为空");
         }
 
         // 定义缓存Key
@@ -239,7 +241,7 @@ public class ProductService {
 
         // 第2层：检查空值缓存（防止缓存穿透）
         if (Boolean.TRUE.equals(redisTemplate.hasKey(nullKey))) {
-            throw new RuntimeException("商品不存在");
+            throw new BusinessException(404, "商品不存在");
         }
 
         // 第3层：尝试从缓存获取
@@ -280,7 +282,7 @@ public class ProductService {
                         } catch (Exception e) {
                             log.warn("缓存空值失败: {}", e.getMessage());
                         }
-                        throw new RuntimeException("商品不存在");
+                        throw new BusinessException(404, "商品不存在");
                     }
 
                     // 第6层：写入缓存（带随机过期时间，防止缓存雪崩）
@@ -301,7 +303,7 @@ public class ProductService {
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new RuntimeException("获取锁被中断", e);
+                throw new BusinessException(500, "获取锁被中断");
             } catch (RuntimeException e) {
                 // 商品不存在的异常直接抛出
                 throw e;
@@ -312,7 +314,7 @@ public class ProductService {
                     // 最后一次重试失败，降级直接查数据库
                     Product product = productMapper.selectById(id);
                     if (product == null) {
-                        throw new RuntimeException("商品不存在");
+                        throw new BusinessException(404, "商品不存在");
                     }
                     return product;
                 }
@@ -322,7 +324,7 @@ public class ProductService {
         // 所有重试都失败，降级直接查数据库
         Product product = productMapper.selectById(id);
         if (product == null) {
-            throw new RuntimeException("商品不存在");
+            throw new BusinessException(404, "商品不存在");
         }
         return product;
     }
@@ -339,7 +341,7 @@ public class ProductService {
 
         // 第2层：检查空值缓存（防止缓存穿透）
         if (Boolean.TRUE.equals(redisTemplate.hasKey(nullKey))) {
-            throw new RuntimeException("商品不存在");
+            throw new BusinessException(404, "商品不存在");
         }
         // 第3层：尝试从缓存获取
         Object cached = redisService.get(cacheKey);
@@ -381,7 +383,7 @@ public class ProductService {
                         } catch (Exception e) {
                             log.warn("缓存空值失败: {}", e.getMessage());
                         }
-                        throw new RuntimeException("商品不存在");
+                        throw new BusinessException(404, "商品不存在");
                     }
 
                     // 第6层：写入缓存（带随机过期时间，防止缓存雪崩）
@@ -402,7 +404,7 @@ public class ProductService {
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new RuntimeException("获取锁被中断", e);
+                throw new BusinessException(500, "获取锁被中断");
             } catch (RuntimeException e) {
                 // 商品不存在的异常直接抛出
                 throw e;
@@ -415,7 +417,7 @@ public class ProductService {
                             orderByAsc(Product::getSort).
                             orderByDesc(Product::getCreateTime));
                     if (products == null) {
-                        throw new RuntimeException("商品不存在");
+                        throw new BusinessException(404, "商品不存在");
                     }
                     return products;
                 }
@@ -427,7 +429,7 @@ public class ProductService {
                 orderByAsc(Product::getSort).
                 orderByDesc(Product::getCreateTime));
         if (products == null) {
-            throw new RuntimeException("商品不存在");
+            throw new BusinessException(404, "商品不存在");
         }
         return products;
     }
@@ -439,12 +441,12 @@ public class ProductService {
         public List<Product> listProductsByCategory (Long categoryId){
             // 0.1 校验分类ID不为空
             if (categoryId == null) {
-                throw new RuntimeException("商品分类ID不能为空");
+                throw new BusinessException(400, "商品分类ID不能为空");
             }
 
             // 0.2. 校验分类是否存在
             if (categoryMapper.selectById(categoryId) == null) {
-                throw new RuntimeException("商品分类不存在");
+                throw new BusinessException(400, "商品分类不存在");
             }
 
             // 定义缓存Key
@@ -453,7 +455,7 @@ public class ProductService {
 
             // 第2层：检查空值缓存（防止缓存穿透）
             if (Boolean.TRUE.equals(redisTemplate.hasKey(nullKey))) {
-                throw new RuntimeException("商品不存在");
+                throw new BusinessException(404, "商品不存在");
             }
             // 第3层：尝试从缓存获取
             Object cached = redisService.get(cacheKey);
@@ -497,7 +499,7 @@ public class ProductService {
                             } catch (Exception e) {
                                 log.warn("缓存空值失败: {}", e.getMessage());
                             }
-                            throw new RuntimeException("商品不存在");
+                            throw new BusinessException(404, "商品不存在");
                         }
 
                         // 第6层：写入缓存
@@ -516,7 +518,7 @@ public class ProductService {
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    throw new RuntimeException("获取锁被中断", e);
+                    throw new BusinessException(500, "获取锁被中断");
                 } catch (RuntimeException e) {
                     // 商品不存在的异常直接抛出
                     throw e;
@@ -532,7 +534,7 @@ public class ProductService {
                                         .orderByDesc(Product::getCreateTime)
                         );
                         if (products == null) {
-                            throw new RuntimeException("商品不存在");
+                            throw new BusinessException(404, "商品不存在");
                         }
                         return products;
                     }
@@ -547,7 +549,7 @@ public class ProductService {
                             .orderByDesc(Product::getCreateTime)
             );
             if (products == null) {
-                throw new RuntimeException("商品不存在");
+                throw new BusinessException(404, "商品不存在");
             }
             return products;
         }
@@ -559,7 +561,7 @@ public class ProductService {
         public List<Product> listProductsByStatus (Integer status){
             // 0. 校验状态值合法（0 或 1）
             if (status == null || (status != 0 && status != 1)) {
-                throw new RuntimeException("商品状态值不合法");
+                throw new BusinessException(400, "商品状态值不合法");
             }
 
             // 定义缓存Key
@@ -568,7 +570,7 @@ public class ProductService {
 
             // 第2层：检查空值缓存（防止缓存穿透）
             if (Boolean.TRUE.equals(redisTemplate.hasKey(nullKey))) {
-                throw new RuntimeException("商品不存在");
+                throw new BusinessException(404, "商品不存在");
             }
             // 第3层：尝试从缓存获取
             Object cached = redisService.get(cacheKey);
@@ -612,7 +614,7 @@ public class ProductService {
                             } catch (Exception e) {
                                 log.warn("缓存空值失败: {}", e.getMessage());
                             }
-                            throw new RuntimeException("商品不存在");
+                            throw new BusinessException(404, "商品不存在");
                         }
 
                         // 第6层：写入缓存
@@ -631,7 +633,7 @@ public class ProductService {
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    throw new RuntimeException("获取锁被中断", e);
+                    throw new BusinessException(500, "获取锁被中断");
                 } catch (RuntimeException e) {
                     // 商品不存在的异常直接抛出
                     throw e;
@@ -647,7 +649,7 @@ public class ProductService {
                                         .orderByDesc(Product::getCreateTime)
                         );
                         if (products == null) {
-                            throw new RuntimeException("商品不存在");
+                            throw new BusinessException(404, "商品不存在");
                         }
                         return products;
                     }
@@ -662,7 +664,7 @@ public class ProductService {
                             .orderByDesc(Product::getCreateTime)
             );
             if (products == null) {
-                throw new RuntimeException("商品不存在");
+                throw new BusinessException(404, "商品不存在");
             }
             return products;
         }
@@ -674,7 +676,7 @@ public class ProductService {
         public List<Product> searchProducts (String keyword){
             // 1. 校验关键字不为空
             if (keyword == null || keyword.trim().isEmpty()) {
-                throw new RuntimeException("搜索关键字不能为空");
+                throw new BusinessException(400, "搜索关键字不能为空");
             }
 
             // 2. 使用 MyBatis Plus 的 LambdaQueryWrapper 模糊查询
@@ -769,7 +771,7 @@ public class ProductService {
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    throw new RuntimeException("获取锁被中断", e);
+                    throw new BusinessException(500, "获取锁被中断");
                 } catch (Exception e) {
                     // 其他异常记录日志，继续重试
                     log.warn("缓存查询失败: {}", e.getMessage());
@@ -871,10 +873,10 @@ public class ProductService {
         public void updateStock (Long id, Integer stock){
             // 1. 参数校验
             if (id == null) {
-                throw new RuntimeException("商品ID不能为空");
+                throw new BusinessException(400, "商品ID不能为空");
             }
             if (stock == null || stock < 0) {
-                throw new RuntimeException("库存数量不能为空且不能为负数");
+                throw new BusinessException(400, "库存数量不能为空且不能为负数");
             }
 
             // 2. 查询商品是否存在
@@ -887,12 +889,12 @@ public class ProductService {
                 boolean tryLock = lock.tryLock(3, 10, TimeUnit.SECONDS);
 //            2.3判断是否获取成功
                 if (!tryLock) {
-                    throw new RuntimeException("系统繁忙，请稍后重试");
+                    throw new BusinessException(500, "系统繁忙，请稍后重试");
                 }
 //            2.4查询商品是否存在
                 Product product = productMapper.selectById(id);
                 if (product == null) {
-                    throw new RuntimeException("商品不存在");
+                    throw new BusinessException(404, "商品不存在");
                 }
                 // 3. 使用 LambdaUpdateWrapper 只更新库存和更新时间
                 LambdaUpdateWrapper<Product> updateWrapper = new LambdaUpdateWrapper<>();
@@ -902,14 +904,14 @@ public class ProductService {
 //            2.5判断是否执行成功
                 int rows = productMapper.update(null, updateWrapper);
                 if (rows <= 0) {
-                    throw new RuntimeException("更新库存失败");
+                    throw new BusinessException(500, "更新库存失败");
                 }
 
                 // 4. 清除商品详情缓存和库存缓存
                 clearProductDetailCache(id);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new RuntimeException("获取锁被中断", e);
+                throw new BusinessException(500, "获取锁被中断");
             } finally {
 //            释放锁
                 if (lock.isHeldByCurrentThread()) {
@@ -925,21 +927,21 @@ public class ProductService {
         public void decreaseStock (Long id, Integer quantity){
             // 1. 参数校验
             if (id == null) {
-                throw new RuntimeException("商品ID不能为空");
+                throw new BusinessException(400, "商品ID不能为空");
             }
             if (quantity == null || quantity <= 0) {
-                throw new RuntimeException("扣减数量必须大于0");
+                throw new BusinessException(400, "扣减数量必须大于0");
             }
 
             // 2. 查询商品是否存在
             Product product = productMapper.selectById(id);
             if (product == null) {
-                throw new RuntimeException("商品不存在");
+                throw new BusinessException(404, "商品不存在");
             }
 
             // 3. 校验库存是否充足
             if (product.getStock() < quantity) {
-                throw new RuntimeException("库存不足，当前库存：" + product.getStock());
+                throw new BusinessException(400, "库存不足，当前库存：" + product.getStock());
             }
 
             // 4. 使用 LambdaUpdateWrapper 扣减库存
@@ -950,7 +952,7 @@ public class ProductService {
 
             int result = productMapper.update(null, updateWrapper);
             if (result <= 0) {
-                throw new RuntimeException("扣减库存失败");
+                throw new BusinessException(500, "扣减库存失败");
             }
 
             // 5. 清除商品详情缓存和库存缓存
@@ -964,16 +966,16 @@ public class ProductService {
         public void increaseSales (Long id, Integer quantity){
             // 1. 参数校验
             if (id == null) {
-                throw new RuntimeException("商品ID不能为空");
+                throw new BusinessException(400, "商品ID不能为空");
             }
             if (quantity == null || quantity <= 0) {
-                throw new RuntimeException("销量数量必须大于0");
+                throw new BusinessException(400, "销量数量必须大于0");
             }
 
             // 2. 查询商品是否存在
             Product product = productMapper.selectById(id);
             if (product == null) {
-                throw new RuntimeException("商品不存在");
+                throw new BusinessException(404, "商品不存在");
             }
 
             // 3. 使用 LambdaUpdateWrapper 增加销量
@@ -985,7 +987,7 @@ public class ProductService {
 
             int result = productMapper.update(null, updateWrapper);
             if (result <= 0) {
-                throw new RuntimeException("增加销量失败");
+                throw new BusinessException(500, "增加销量失败");
             }
 
             // 4. 清除商品详情缓存
@@ -1001,18 +1003,18 @@ public class ProductService {
         public void publishProduct (Long id){
             // 1. 参数校验
             if (id == null) {
-                throw new RuntimeException("商品ID不能为空");
+                throw new BusinessException(400, "商品ID不能为空");
             }
 
             // 2. 查询商品是否存在
             Product product = productMapper.selectById(id);
             if (product == null) {
-                throw new RuntimeException("商品不存在");
+                throw new BusinessException(404, "商品不存在");
             }
 
             // 3. 校验库存是否充足
             if (product.getStock() == null || product.getStock() <= 0) {
-                throw new RuntimeException("商品库存不足，无法上架");
+                throw new BusinessException(400, "商品库存不足，无法上架");
             }
 
             // 4. 使用 LambdaUpdateWrapper 更新状态
@@ -1023,7 +1025,7 @@ public class ProductService {
 
             int result = productMapper.update(null, updateWrapper);
             if (result <= 0) {
-                throw new RuntimeException("上架商品失败");
+                throw new BusinessException(500, "上架商品失败");
             }
 
             // 5. 清除商品详情缓存和列表缓存
@@ -1038,13 +1040,13 @@ public class ProductService {
         public void unpublishProduct (Long id){
             // 1. 参数校验
             if (id == null) {
-                throw new RuntimeException("商品ID不能为空");
+                throw new BusinessException(400, "商品ID不能为空");
             }
 
             // 2. 查询商品是否存在
             Product product = productMapper.selectById(id);
             if (product == null) {
-                throw new RuntimeException("商品不存在");
+                throw new BusinessException(404, "商品不存在");
             }
 
             // 3. 使用 LambdaUpdateWrapper 更新状态
@@ -1055,7 +1057,7 @@ public class ProductService {
 
             int result = productMapper.update(null, updateWrapper);
             if (result <= 0) {
-                throw new RuntimeException("下架商品失败");
+                throw new BusinessException(500, "下架商品失败");
             }
 
             // 4. 清除商品详情缓存和列表缓存
@@ -1229,16 +1231,16 @@ public class ProductService {
     public void increaseStock(Long id, Integer quantity) {
         // 1. 参数校验
         if (id == null) {
-            throw new RuntimeException("商品ID不能为空");
+            throw new BusinessException(400, "商品ID不能为空");
         }
         if (quantity == null || quantity <= 0) {
-            throw new RuntimeException("增加数量必须大于0");
+            throw new BusinessException(400, "增加数量必须大于0");
         }
 
         // 2. 查询商品是否存在
         Product product = productMapper.selectById(id);
         if (product == null) {
-            throw new RuntimeException("商品不存在");
+            throw new BusinessException(404, "商品不存在");
         }
 
         // 3. 使用 LambdaUpdateWrapper 增加库存
@@ -1249,7 +1251,7 @@ public class ProductService {
 
         int result = productMapper.update(null, updateWrapper);
         if (result <= 0) {
-            throw new RuntimeException("增加库存失败");
+            throw new BusinessException(500, "增加库存失败");
         }
 
         // 4. 清除商品详情缓存和库存缓存

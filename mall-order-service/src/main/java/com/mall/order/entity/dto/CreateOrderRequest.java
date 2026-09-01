@@ -1,5 +1,7 @@
 package com.mall.order.entity.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.util.List;
@@ -19,6 +21,10 @@ public class CreateOrderRequest {
      */
     private Long productId;
 
+    /**
+     * 用户ID
+     */
+    @NotNull(message = "用户ID不能为空")
     private Long userId;
 
     /**
@@ -29,16 +35,19 @@ public class CreateOrderRequest {
     /**
      * 收货人姓名
      */
+    @NotBlank(message = "收货人姓名不能为空")
     private String receiverName;
 
     /**
      * 收货人电话
      */
+    @NotBlank(message = "收货人电话不能为空")
     private String receiverPhone;
 
     /**
      * 收货地址
      */
+    @NotBlank(message = "收货地址不能为空")
     private String receiverAddress;
 
     /**

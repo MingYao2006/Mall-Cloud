@@ -10,7 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
-import org.springframework.data.elasticsearch.core.query.StringQuery;
+import org.springframework.data.elasticsearch.core.query.Criteria;
+import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -37,13 +38,11 @@ public class ProductSearchService {
      * 搜索商品
      */
     public List<EsProduct> searchProducts(String keyword) {
-        String queryJson = "{"
-                + "\"bool\":{\"should\":["
-                + "{\"match\":{\"name\":{\"query\":\"" + keyword + "\",\"operator\":\"and\"}}},"
-                + "{\"match\":{\"brand\":{\"query\":\"" + keyword + "\",\"operator\":\"and\"}}},"
-                + "{\"match\":{\"description\":{\"query\":\"" + keyword + "\",\"operator\":\"and\"}}}"
-                + "]}}";
-        StringQuery query = new StringQuery(queryJson);
+        // 使用 Criteria API 构建查询，避免 JSON 拼接注入风险
+        Criteria criteria = new Criteria("name").matches(keyword)
+                .or("brand").matches(keyword)
+                .or("description").matches(keyword);
+        CriteriaQuery query = new CriteriaQuery(criteria);
 
         SearchHits<EsProduct> searchHits = elasticsearchOperations.search(query, EsProduct.class);
         return searchHits.getSearchHits().stream()

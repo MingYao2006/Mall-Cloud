@@ -20,14 +20,20 @@ import org.springframework.context.annotation.Primary;
 @Configuration
 public class RedisMasterSlaveConfig {
 
-    @Value("${spring.data.redis.host:localhost}")
+    @Value("${app.redis.master.host:localhost}")
     private String masterHost;
 
-    @Value("${spring.data.redis.port:6379}")
+    @Value("${app.redis.master.port:6379}")
     private int masterPort;
 
-    @Value("${spring.data.redis.password:}")
+    @Value("${app.redis.master.password:}")
     private String password;
+
+    @Value("${app.redis.slave1.port:6380}")
+    private int slave1Port;
+
+    @Value("${app.redis.slave2.port:6381}")
+    private int slave2Port;
 
     /**
      * 配置 Redisson 客户端（主从模式）
@@ -49,8 +55,8 @@ public class RedisMasterSlaveConfig {
                 .setMasterAddress("redis://" + masterHost + ":" + masterPort)
                 // 从节点地址列表（一主两从）
                 .addSlaveAddress(
-                        "redis://" + masterHost + ":6380",  // 从节点1
-                        "redis://" + masterHost + ":6381"   // 从节点2
+                        "redis://" + masterHost + ":" + slave1Port,  // 从节点1
+                        "redis://" + masterHost + ":" + slave2Port   // 从节点2
                 )
                 // 读模式：优先从从节点读取
                 .setReadMode(ReadMode.SLAVE)
@@ -67,6 +73,9 @@ public class RedisMasterSlaveConfig {
                 .setRetryAttempts(3)
                 .setRetryInterval(1500)
                 .setIdleConnectionTimeout(10000);
+        
+        // 禁用分布式锁的从节点同步检查（单机主从模式下从节点同步延迟可接受）
+        config.setCheckLockSyncedSlaves(false);
         
         // 如果设置了密码
         if (password != null && !password.isEmpty()) {

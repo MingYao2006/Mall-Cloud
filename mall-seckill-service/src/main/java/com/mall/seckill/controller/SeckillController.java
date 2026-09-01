@@ -7,11 +7,14 @@ import com.mall.common.Result;
 import com.mall.seckill.service.SeckillService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/seckill")
+@Validated
 @Tag(name = "秒杀服务", description = "秒杀相关接口")
 public class SeckillController {
 
@@ -51,8 +54,8 @@ public class SeckillController {
             fallback = "handleSeckillFallback"
     )
     public Result<String> seckillCoupon(
-            @RequestHeader("userId") Long userId,
-            @PathVariable Long couponId) {
+            @RequestHeader("userId") @NotNull(message = "用户ID不能为空") Long userId,
+            @PathVariable @NotNull(message = "优惠券ID不能为空") Long couponId) {
         // 发送消息到 RabbitMQ
         seckillService.sendSeckillMessage(userId, couponId);
         // 直接返回，不等待处理完成
@@ -62,8 +65,8 @@ public class SeckillController {
     @GetMapping("/doSeckill")
     @Operation(summary = "秒杀抢券（GET方式）")
     public Result<String> doSeckill(
-            @RequestParam("userId") Long userId,
-            @RequestParam("couponId") Long couponId) {
+            @RequestParam("userId") @NotNull(message = "用户ID不能为空") Long userId,
+            @RequestParam("couponId") @NotNull(message = "优惠券ID不能为空") Long couponId) {
         // 发送消息到 RabbitMQ
         seckillService.sendSeckillMessage(userId, couponId);
         return Result.success("秒杀请求已提交，正在处理中...");

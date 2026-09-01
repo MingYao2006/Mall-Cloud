@@ -1,5 +1,6 @@
 package com.mall.order.service;
 
+import com.mall.common.BusinessException;
 import com.mall.common.Result;
 import com.mall.order.entity.Cart;
 import com.mall.order.entity.Item.OrderItem;
@@ -21,7 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.mall.common.RedisService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -96,7 +97,7 @@ public class OrderService {
             );
             orderItems.add(item);
         } else {
-            throw new RuntimeException("请选择商品或购物车项");
+            throw new BusinessException(400, "请选择商品或购物车项");
         }
 
         // 3. 计算总金额
@@ -176,20 +177,20 @@ public class OrderService {
      */
     private void validateRequest(CreateOrderRequest request) {
         if (request.getUserId() == null) {
-            throw new RuntimeException("用户ID不能为空");
+            throw new BusinessException(400, "用户ID不能为空");
         }
         if (request.getReceiverName() == null || request.getReceiverName().trim().isEmpty()) {
-            throw new RuntimeException("收货人姓名不能为空");
+            throw new BusinessException(400, "收货人姓名不能为空");
         }
         if (request.getReceiverPhone() == null || request.getReceiverPhone().trim().isEmpty()) {
-            throw new RuntimeException("收货人电话不能为空");
+            throw new BusinessException(400, "收货人电话不能为空");
         }
         String phone = request.getReceiverPhone().trim();
         if (!isValidPhone(phone)) {
-            throw new RuntimeException("收货人电话格式错误");
+            throw new BusinessException(400, "收货人电话格式错误");
         }
         if (request.getReceiverAddress() == null || request.getReceiverAddress().trim().isEmpty()) {
-            throw new RuntimeException("收货地址不能为空");
+            throw new BusinessException(400, "收货地址不能为空");
         }
     }
 
@@ -202,7 +203,7 @@ public class OrderService {
         for (Long cartItemId : cartItemIds) {
             Cart cart = cartMapper.selectById(cartItemId);
             if (cart == null) {
-                throw new RuntimeException("购物车项不存在：" + cartItemId);
+                throw new BusinessException(400, "购物车项不存在：" + cartItemId);
             }
 
             //调用openfeign服务
@@ -210,17 +211,17 @@ public class OrderService {
             Product product = result.getData();
 
             if (product == null) {
-                throw new RuntimeException("商品不存在：" + cart.getProductId());
+                throw new BusinessException(400, "商品不存在：" + cart.getProductId());
             }
 
             // 检查商品是否上架
             if (product.getStatus() == null || product.getStatus() != 1) {
-                throw new RuntimeException("商品【" + product.getName() + "】已下架");
+                throw new BusinessException(400, "商品【" + product.getName() + "】已下架");
             }
 
             // 检查库存
             if (product.getStock() < cart.getQuantity()) {
-                throw new RuntimeException("商品【" + product.getName() + "】库存不足，当前库存：" + product.getStock());
+                throw new BusinessException(400, "商品【" + product.getName() + "】库存不足，当前库存：" + product.getStock());
             }
 
             OrderItem item = new OrderItem();
@@ -245,17 +246,17 @@ public class OrderService {
         Result<Product> result = productServiceFeignClient.findById(productId);
         Product product = result.getData();
         if (product == null) {
-            throw new RuntimeException("商品不存在：" + productId);
+            throw new BusinessException(400, "商品不存在：" + productId);
         }
 
         // 2. 检查商品状态
         if (product.getStatus() != 1) {
-            throw new RuntimeException("商品已下架");
+            throw new BusinessException(400, "商品已下架");
         }
 
         // 3. 检查库存
         if (product.getStock() < quantity) {
-            throw new RuntimeException("商品【" + product.getName() + "】库存不足，当前库存：" + product.getStock());
+            throw new BusinessException(400, "商品【" + product.getName() + "】库存不足，当前库存：" + product.getStock());
         }
 
         // 4. 创建订单项
@@ -301,16 +302,16 @@ public class OrderService {
         try {
             boolean tryLock = lock.tryLock(3, 10, TimeUnit.SECONDS);
             if (!tryLock) {
-                throw new RuntimeException("系统繁忙,请稍后重试");
+                throw new BusinessException(500, "系统繁忙,请稍后重试");
             }
 
             Result<String> result = productServiceFeignClient.decreaseStock(productId, quantity);
             if (result == null || result.getCode() == null || result.getCode() != 200) {
-                throw new RuntimeException("库存扣减失败：" + (result != null ? result.getMessage() : "服务无响应"));
+                throw new BusinessException(500, "库存扣减失败：" + (result != null ? result.getMessage() : "服务无响应"));
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("获取锁被中断", e);
+            throw new BusinessException(500, "获取锁被中断");
         } finally {
             if (lock.isHeldByCurrentThread()) {
                 lock.unlock();
@@ -336,7 +337,7 @@ public class OrderService {
     public List<OrderVO> getOrdersByUserId(Long userId) {
         // 第1层：参数校验
         if (userId == null || userId <= 0) {
-            throw new RuntimeException("用户ID无效");
+            throw new BusinessException(400, "用户ID无效");
         }
 
         String cacheKey = ORDER_CACHE_KEY + "list:" + userId;
@@ -417,7 +418,7 @@ public class OrderService {
 
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    throw new RuntimeException("获取锁被中断", e);
+                    throw new BusinessException(500, "获取锁被中断");
                 }
             }
 
@@ -470,14 +471,14 @@ public class OrderService {
     public OrderDetailVO getOrderByOrderId(Long orderId) {
         // 1. 参数校验  第1层：参数校验
         if (orderId == null || orderId <= 0) {
-            throw new RuntimeException("订单id不存在");
+            throw new BusinessException(400, "订单id不存在");
         }
         String cacheKey = "select:order:" + orderId;
         String nullKey = "select:order:null:" + orderId;
         try {
             // 第2层：检查空值缓存
             if (redisTemplate.hasKey(nullKey)) {
-                throw new RuntimeException("数据不存在");
+                throw new BusinessException(404, "数据不存在");
             }
             // 尝试从缓存获取
             Object cached = redisService.get(cacheKey);
@@ -508,7 +509,7 @@ public class OrderService {
                     // 双重检查：获取锁后再次检查缓存
                     // 第2层：检查空值缓存
                     if (redisTemplate.hasKey(nullKey)) {
-                        throw new RuntimeException("数据不存在");
+                        throw new BusinessException(404, "数据不存在");
                     }
                     // 尝试从缓存获取
                     Object cached = redisService.get(cacheKey);
@@ -527,7 +528,7 @@ public class OrderService {
                         } catch (Exception e) {
                             // 忽略
                         }
-                        throw new RuntimeException("订单不存在");
+                        throw new BusinessException(404, "订单不存在");
                     }
                     // 4. 查询订单详情列表
                     List<OrderItem> orderItems = orderItemMapper.selectByOrderId(orderId);
@@ -550,9 +551,9 @@ public class OrderService {
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new RuntimeException("获取锁被中断", e);
+                throw new BusinessException(500, "获取锁被中断");
             } catch (RuntimeException e) {
-                // RuntimeException直接抛出（如“订单不存在”）
+                // RuntimeException直接抛出（如"订单不存在"）
                 throw e;
             } catch (Exception e) {
                 // 其他异常记录日志，继续重试
@@ -561,7 +562,7 @@ public class OrderService {
                     // 最后一次重试失败，降级直接查数据库
                     Order order = orderMapper.selectById(orderId);
                     if (order == null) {
-                        throw new RuntimeException("订单不存在");
+                        throw new BusinessException(404, "订单不存在");
                     }
                     List<OrderItem> orderItems = orderItemMapper.selectByOrderId(orderId);
                     return convertToOrderDetailVO(order, orderItems);
@@ -572,7 +573,7 @@ public class OrderService {
         // 所有重试都失败，降级直接查数据库
         Order order = orderMapper.selectById(orderId);
         if (order == null) {
-            throw new RuntimeException("订单不存在");
+            throw new BusinessException(404, "订单不存在");
         }
         List<OrderItem> orderItems = orderItemMapper.selectByOrderId(orderId);
         return convertToOrderDetailVO(order, orderItems);
@@ -597,23 +598,23 @@ public class OrderService {
     public void cancelOrder(Long orderId) {
         // 1. 参数校验
         if (orderId == null) {
-            throw new RuntimeException("订单id不存在");
+            throw new BusinessException(400, "订单id不存在");
         }
         // 2. 查询订单信息
         Order order = orderMapper.selectById(orderId);
         // 3. 验证订单是否存在
         if (order == null) {
-            throw new RuntimeException("订单不存在");
+            throw new BusinessException(404, "订单不存在");
         }
         // 4. 验证订单状态（只有待支付或已支付状态才能取消）
         Integer status = order.getStatus();
         if (status != 0 && status != 1) {
-            throw new RuntimeException("订单未处于待支付或已支付状态，当前状态为：" + getStatusText(status));
+            throw new BusinessException(400, "订单未处于待支付或已支付状态，当前状态为：" + getStatusText(status));
         }
         // 5. 查询订单详情列表
         List<OrderItem> orderItems = orderItemMapper.selectByOrderId(orderId);
         if (orderItems == null || orderItems.isEmpty()) {
-            throw new RuntimeException("订单中没有商品");
+            throw new BusinessException(400, "订单中没有商品");
         }
         // 6.todo 恢复商品库存
         for (OrderItem item : orderItems) {
@@ -634,6 +635,15 @@ public class OrderService {
     private void sendOrderCancelledMessage(Long orderId, List<OrderItem> orderItems) {
         try {
             Map<String,Object> message=new HashMap<>();
+            message.put("orderId", orderId);
+            List<Map<String, Object>> orderItemList = new ArrayList<>();
+            for (OrderItem item : orderItems) {
+                Map<String, Object> itemMap = new HashMap<>();
+                itemMap.put("productId", item.getProductId());
+                itemMap.put("quantity", item.getQuantity());
+                orderItemList.add(itemMap);
+            }
+            message.put("orderitem", orderItemList);
             rabbitTemplate.convertAndSend(
                     "order.cancel.resource.exchange",  // 交换器名称
                     "order.cancel.resource.key",       // 路由键
@@ -655,19 +665,19 @@ public class OrderService {
         try {
             boolean tryLock = lock.tryLock(3, 10, TimeUnit.SECONDS);
             if (!tryLock) {
-                throw new RuntimeException("系统繁忙，请稍后重试");
+                throw new BusinessException(500, "系统繁忙，请稍后重试");
             }
 //            int affectedRows = productMapper.increaseStock(productId, quantity);
             Result<String> result = productServiceFeignClient.increaseStock(productId, quantity);
             if (result == null || result.getCode() == null || result.getCode() != 200) {
-                throw new RuntimeException("库存增加失败：" + (result != null ? result.getMessage() : "服务无响应"));
+                throw new BusinessException(500, "库存增加失败：" + (result != null ? result.getMessage() : "服务无响应"));
             }
 //            if (affectedRows == 0) {
-//                throw new RuntimeException("恢复库存失败，商品ID：" + productId);
+//                throw new BusinessException(500, "恢复库存失败，商品ID：" + productId);
 //            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("获取锁被中断", e);
+            throw new BusinessException(500, "获取锁被中断");
         } finally {
             if (lock.isHeldByCurrentThread()) {
                 lock.unlock();
@@ -719,18 +729,18 @@ public class OrderService {
     public void payOrder(Long orderId) {
         // 1. 参数校验
         if (orderId == null) {
-            throw new RuntimeException("订单id不存在");
+            throw new BusinessException(400, "订单id不存在");
         }
         // 2. 查询订单信息
         Order order = orderMapper.selectById(orderId);
         // 3. 验证订单是否存在
         if (order == null) {
-            throw new RuntimeException("订单不存在");
+            throw new BusinessException(404, "订单不存在");
         }
         // 4. 验证订单状态（只有待支付状态才能支付）
         Integer status = order.getStatus();
         if (status != 0) {
-            throw new RuntimeException("订单未处于待支付状态");
+            throw new BusinessException(400, "订单未处于待支付状态");
         }
         // 5. 更新订单状态为待发货
         order.setStatus(1);

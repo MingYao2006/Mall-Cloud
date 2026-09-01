@@ -7,6 +7,7 @@ import com.mall.common.Result;
 import com.mall.product.entity.Product;
 import com.mall.product.entity.query.ProductQuery;
 import com.mall.product.service.ProductService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -36,7 +37,7 @@ public class ProductController {
      * POST /product
      */
     @PostMapping
-    public Result<Object> add(@RequestBody Product product) {
+    public Result<Object> add(@RequestBody @Valid Product product) {
         productService.add(product);
         return Result.success("添加成功");
     }
@@ -46,7 +47,7 @@ public class ProductController {
      * PUT /product
      */
     @PutMapping
-    public Result<Object> update(@RequestBody Product product) {
+    public Result<Object> update(@RequestBody @Valid Product product) {
         productService.update(product);
         return Result.success("更新成功");
     }

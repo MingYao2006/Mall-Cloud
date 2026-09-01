@@ -1,5 +1,6 @@
 package com.mall.cart.service;
 
+import com.mall.common.BusinessException;
 import com.mall.common.Result;
 import com.mall.cart.entity.Cart;
 import com.mall.cart.entity.vo.CartVO;
@@ -37,18 +38,18 @@ public class CartService {
      */
     public void addToCart(Long userId, Long productId, Integer quantity) {
         if (userId == null) {
-            throw new RuntimeException("用户ID不能为空");
+            throw new BusinessException(400, "用户ID不能为空");
         }
         if (productId == null) {
-            throw new RuntimeException("商品ID不能为空");
+            throw new BusinessException(400, "商品ID不能为空");
         }
         if (quantity == null || quantity <= 0) {
-            throw new RuntimeException("商品数量必须大于0");
+            throw new BusinessException(400, "商品数量必须大于0");
         }
 
         Result<?> result = productServiceFeignClient.findById(productId);
         if (result == null || result.getData() == null) {
-            throw new RuntimeException("商品不存在");
+            throw new BusinessException(400, "商品不存在");
         }
 
         String lockKey = "lock:cart:" + userId + ":" + productId;
@@ -56,7 +57,7 @@ public class CartService {
         try {
             boolean tryLock = lock.tryLock(3, 10, TimeUnit.SECONDS);
             if (!tryLock) {
-                throw new RuntimeException("系统繁忙，请稍后重试");
+                throw new BusinessException(500, "系统繁忙，请稍后重试");
             }
             Cart cart = cartMapper.selectByUserIdAndProductId(userId, productId);
             if (cart != null) {
@@ -76,7 +77,7 @@ public class CartService {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("获取锁被中断", e);
+            throw new BusinessException(500, "获取锁被中断");
         } finally {
             if (lock.isHeldByCurrentThread()) {
                 lock.unlock();
@@ -89,28 +90,28 @@ public class CartService {
      */
     public void updateCartQuantity(Long userId, Long productId, Integer quantity) {
         if (userId == null) {
-            throw new RuntimeException("用户ID不能为空");
+            throw new BusinessException(400, "用户ID不能为空");
         }
         if (productId == null) {
-            throw new RuntimeException("商品ID不能为空");
+            throw new BusinessException(400, "商品ID不能为空");
         }
         if (quantity == null || quantity <= 0) {
-            throw new RuntimeException("商品数量必须大于0");
+            throw new BusinessException(400, "商品数量必须大于0");
         }
 
         Cart cart = cartMapper.selectByUserIdAndProductId(userId, productId);
         if (cart == null) {
-            throw new RuntimeException("购物车中不存在该商品");
+            throw new BusinessException(400, "购物车中不存在该商品");
         }
 
         if (!cart.getUserId().equals(userId)) {
-            throw new RuntimeException("无权操作该购物车");
+            throw new BusinessException(403, "无权操作该购物车");
         }
 
         int result = cartMapper.updateQuantity(userId, productId, quantity);
 
         if (result <= 0) {
-            throw new RuntimeException("更新购物车数量失败");
+            throw new BusinessException(500, "更新购物车数量失败");
         }
     }
 
@@ -119,25 +120,25 @@ public class CartService {
      */
     public void deleteFromCart(Long userId, Long productId) {
         if (userId == null) {
-            throw new RuntimeException("用户ID不能为空");
+            throw new BusinessException(400, "用户ID不能为空");
         }
         if (productId == null) {
-            throw new RuntimeException("商品ID不能为空");
+            throw new BusinessException(400, "商品ID不能为空");
         }
 
         Cart cart = cartMapper.selectByUserIdAndProductId(userId, productId);
         if (cart == null) {
-            throw new RuntimeException("购物车中不存在该商品");
+            throw new BusinessException(400, "购物车中不存在该商品");
         }
 
         if (!cart.getUserId().equals(userId)) {
-            throw new RuntimeException("无权操作该购物车");
+            throw new BusinessException(403, "无权操作该购物车");
         }
 
         int result = cartMapper.deleteByUserIdAndProductId(userId, productId);
 
         if (result <= 0) {
-            throw new RuntimeException("删除购物车商品失败");
+            throw new BusinessException(500, "删除购物车商品失败");
         }
     }
 
@@ -146,7 +147,7 @@ public class CartService {
      */
     public List<CartVO> getCartList(Long userId) {
         if (userId == null) {
-            throw new RuntimeException("用户ID不能为空");
+            throw new BusinessException(400, "用户ID不能为空");
         }
 
         List<CartVO> cartList = cartMapper.selectCartListByUserId(userId);
@@ -170,18 +171,18 @@ public class CartService {
         Integer selectedInt = selected ? 1 : 0;
         
         if (selectedInt == null || (selectedInt != 0 && selectedInt != 1)) {
-            throw new RuntimeException("选中状态必须为0或1");
+            throw new BusinessException(400, "选中状态必须为0或1");
         }
         Cart cart = cartMapper.selectByUserIdAndProductId(userId, productId);
         if (cart == null) {
-            throw new RuntimeException("购物车中不存在该商品");
+            throw new BusinessException(400, "购物车中不存在该商品");
         }
         if (!cart.getUserId().equals(userId)) {
-            throw new RuntimeException("无权操作该购物车");
+            throw new BusinessException(403, "无权操作该购物车");
         }
         int rows = cartMapper.updateSelected(userId, productId, selectedInt);
         if (rows <= 0) {
-            throw new RuntimeException("更新选中状态失败");
+            throw new BusinessException(500, "更新选中状态失败");
         }
     }
 
@@ -192,14 +193,14 @@ public class CartService {
         Integer selectedInt = selected ? 1 : 0;
         
         if (userId == null) {
-            throw new RuntimeException("用户ID不能为空");
+            throw new BusinessException(400, "用户ID不能为空");
         }
         if (selectedInt == null || (selectedInt != 0 && selectedInt != 1)) {
-            throw new RuntimeException("选中状态必须为0或1");
+            throw new BusinessException(400, "选中状态必须为0或1");
         }
         int rows = cartMapper.updateAllSelected(userId, selectedInt);
         if (rows <= 0) {
-            throw new RuntimeException("更新选中状态失败");
+            throw new BusinessException(500, "更新选中状态失败");
         }
     }
 
@@ -208,10 +209,10 @@ public class CartService {
      */
     public void batchDeleteFromCart(Long userId, List<Long> productIds) {
         if (userId == null) {
-            throw new RuntimeException("用户ID不能为空");
+            throw new BusinessException(400, "用户ID不能为空");
         }
         if (productIds == null || productIds.isEmpty()) {
-            throw new RuntimeException("商品ID列表不能为空");
+            throw new BusinessException(400, "商品ID列表不能为空");
         }
 
         for (Long productId : productIds) {
@@ -227,7 +228,7 @@ public class CartService {
      */
     public BigDecimal calculateTotalPrice(Long userId) {
         if (userId == null) {
-            throw new RuntimeException("用户ID不能为空");
+            throw new BusinessException(400, "用户ID不能为空");
         }
 
         List<CartVO> selectedCartItems = getSelectedCartItems(userId);
@@ -247,7 +248,7 @@ public class CartService {
      */
     public List<CartVO> getSelectedCartItems(Long userId) {
         if (userId == null) {
-            throw new RuntimeException("用户ID不能为空");
+            throw new BusinessException(400, "用户ID不能为空");
         }
 
         List<CartVO> selectedCartItems = cartMapper.selectSelectedCartItems(userId);
@@ -269,12 +270,12 @@ public class CartService {
      */
     public int clearCart(Long userId) {
         if (userId == null) {
-            throw new RuntimeException("用户ID不能为空");
+            throw new BusinessException(400, "用户ID不能为空");
         }
 
         int rows = cartMapper.deleteByUserId(userId);
         if (rows <= 0) {
-            throw new RuntimeException("清空购物车失败");
+            throw new BusinessException(500, "清空购物车失败");
         }
 
         return rows;
@@ -285,10 +286,10 @@ public class CartService {
      */
     public void mergeCart(Long userId, List<Cart> tempCartList) {
         if (tempCartList == null || tempCartList.isEmpty()) {
-            throw new RuntimeException("临时购物车不能为空");
+            throw new BusinessException(400, "临时购物车不能为空");
         }
         if (userId == null) {
-            throw new RuntimeException("用户ID不能为空");
+            throw new BusinessException(400, "用户ID不能为空");
         }
 
         for (Cart tempCart : tempCartList) {

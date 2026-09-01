@@ -96,6 +96,12 @@
             <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
 
+        <!-- Spring Cloud LoadBalancer 负载均衡 -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+
         <!-- Sentinel 核心依赖 -->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>

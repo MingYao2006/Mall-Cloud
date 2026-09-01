@@ -113,6 +113,7 @@ const hotWords = ['iPhone', '华为', '小米', 'MacBook', '格力', '戴森']
 
 const navs = [
   { name: '首页', path: '/home', match: (r) => r.path === '/home' && !r.query.category && !r.query.keyword },
+  { name: '秒杀', path: '/seckill', match: (r) => r.path === '/seckill' },
   { name: '手机数码', query: { category: '4' } },
   { name: '电脑办公', query: { category: '5' } },
   { name: '智能穿戴', query: { category: '8' } },

@@ -1,6 +1,6 @@
 # 开发环境配置(本地开发)
 server:
-  port: ${SERVER_PORT:8081}
+  port: 9090
   servlet:
     context-path: /api
 

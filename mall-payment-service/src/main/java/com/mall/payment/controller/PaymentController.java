@@ -48,10 +48,9 @@ public class PaymentController {
             }
         }
         
-        // 如果请求头中没有用户ID，使用默认用户ID（临时方案，实际生产环境应该拒绝请求）
+        // 请求头中没有用户ID，拒绝请求
         if (userId == null) {
-            userId = 1L; // 默认用户ID
-            log.warn("X-User-Id 不存在，使用默认用户ID: 1");
+            throw new BusinessException(401, "未登录，请先登录");
         }
         
         Long finalOrderId = request.getOrderId();

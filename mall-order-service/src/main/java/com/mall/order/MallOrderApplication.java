@@ -8,7 +8,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 
 @EnableDiscoveryClient
 @MapperScan("com.mall.order.mapper")
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {"com.mall.common", "com.mall.order"})
 @EnableFeignClients(basePackages = "com.mall.order.feign")
 public class MallOrderApplication {
     public static void main(String[] args) {

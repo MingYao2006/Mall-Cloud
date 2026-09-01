@@ -155,6 +155,13 @@
             <version>1.18.36</version>
             <scope>provided</scope>
         </dependency>
+
+        <!-- 支付宝 SDK -->
+        <dependency>
+            <groupId>com.alipay.sdk</groupId>
+            <artifactId>alipay-sdk-java</artifactId>
+            <version>4.38.157.ALL</version>
+        </dependency>
     </dependencies>
 
     <build>

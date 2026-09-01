@@ -1,5 +1,6 @@
 package com.mall.seckill.service;
 
+import com.mall.common.BusinessException;
 import com.mall.common.Result;
 import com.mall.seckill.config.RabbitMQConfig;
 import com.mall.seckill.entity.Coupon;
@@ -79,10 +80,10 @@ public class SeckillService {
      * 使用 Redis + 分布式锁 + 数据库乐观锁 三层防护
      */
     @Transactional(rollbackFor = Exception.class)
-    public Result<String> seckillCoupon(Long userId, Long couponId) {
+    public void seckillCoupon(Long userId, Long couponId) {
         // 1. 基础参数校验
         if (userId == null || couponId == null) {
-            return Result.error(500, "参数错误");
+            throw new BusinessException(400, "参数错误");
         }
         
         // 2. 用户限流 - 防止恶意刷接口
@@ -92,7 +93,7 @@ public class SeckillService {
             redisTemplate.expire(limitKey, 60, TimeUnit.SECONDS);
         }
         if (requestCount > RATE_LIMIT_THRESHOLD) {
-            return Result.error(429, "请求过于频繁，请稍后再试");
+            throw new BusinessException(429, "请求过于频繁，请稍后再试");
         }
         
         // 3. 分布式锁 - 防止并发超卖
@@ -102,33 +103,33 @@ public class SeckillService {
         try {
             boolean tryLock = lock.tryLock(3, 10, TimeUnit.SECONDS);
             if (!tryLock) {
-                return Result.error(500, "系统繁忙，请稍后重试");
+                throw new BusinessException(500, "系统繁忙，请稍后重试");
             }
 
             // 4. 幂等性校验 - 防止重复提交
             String userkey = SECKILL_USER_KEY + couponId + ":" + userId;
             if (Boolean.TRUE.equals(redisTemplate.hasKey(userkey))) {
-                return Result.error(600, "您已参与过该活动");
+                throw new BusinessException(600, "您已参与过该活动");
             }
 
             // 5. 查询优惠券信息并校验每人限抢数量
             Coupon coupon = couponMapper.selectById(couponId);
             if (coupon == null || coupon.getStatus() != 1) {
-                return Result.error(600, "优惠券不存在或活动未开始");
+                throw new BusinessException(600, "优惠券不存在或活动未开始");
             }
             
             // 检查用户已领取数量是否达到限制
             if (coupon.getLimitPerUser() != null && coupon.getLimitPerUser() > 0) {
                 Integer count = userCouponMapper.countByUserIdAndCouponId(userId, couponId);
                 if (count != null && count >= coupon.getLimitPerUser()) {
-                    return Result.error(600, "已达到每人限抢数量");
+                    throw new BusinessException(600, "已达到每人限抢数量");
                 }
             }
 
             // 6. Redis 预减库存（Lua脚本保证原子性）
             Long stock = decreaseStock(couponId);
             if (stock < 0) {
-                return Result.error(600, "优惠券已抢完");
+                throw new BusinessException(600, "优惠券已抢完");
             }
 
             // 7. 数据库扣减库存（乐观锁）
@@ -136,7 +137,7 @@ public class SeckillService {
             if (decreased == 0) {
                 // 数据库扣减失败，回滚Redis库存
                 redisTemplate.opsForValue().increment(COUPON_STOCK_KEY + couponId);
-                return Result.fail("抢券失败，请重试");
+                throw new BusinessException(500, "抢券失败，请重试");
             }
             
             // 8. 生成用户优惠券
@@ -158,12 +159,11 @@ public class SeckillService {
             // 10. 标记用户已参与（防重）
             redisTemplate.opsForValue().set(userkey, "1", 24, TimeUnit.HOURS);
             logger.info("秒杀成功: userId={}, couponId={}", userId, couponId);
-            return Result.success("抢券成功");
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             compensateRedisStock(couponId);
-            return Result.error(600, "系统异常");
+            throw new BusinessException(500, "系统异常");
         } catch (Exception e) {
             compensateRedisStock(couponId);
             logger.error("秒杀失败，回滚Redis库存: userId={}, couponId={}", userId, couponId, e);
@@ -218,7 +218,7 @@ public class SeckillService {
             return result;
 
         } catch (Exception e) {
-            throw new RuntimeException("预减库存失败", e);
+            throw new BusinessException(500, "预减库存失败");
         }
     }
 }
