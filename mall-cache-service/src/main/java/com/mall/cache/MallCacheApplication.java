@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 
-@SpringBootApplication(scanBasePackages = "com.mall.cache")
+@SpringBootApplication(scanBasePackages = {"com.mall.cache", "com.mall.common"})
 @EnableDiscoveryClient
 public class MallCacheApplication {
     public static void main(String[] args) {

@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 
-@SpringBootApplication(scanBasePackages = "com.mall.seckill")
+@SpringBootApplication(scanBasePackages = {"com.mall.seckill", "com.mall.common"})
 @EnableDiscoveryClient
 @EnableFeignClients(basePackages = "com.mall.seckill.feign")
 @MapperScan("com.mall.seckill.mapper")
