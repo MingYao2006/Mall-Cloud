@@ -59,4 +59,32 @@ public class CategoryController {
         categoryService.deleteCategory(id);
         return Result.success("删除成功");
     }
+
+    @GetMapping("/list")
+    @Operation(summary = "获取所有启用分类")
+    public Result<List<Category>> listCategories() {
+        List<Category> categories = categoryService.getAllCategories();
+        return Result.success(categories);
+    }
+
+    @GetMapping("/children/{parentId}")
+    @Operation(summary = "查询子分类")
+    public Result<List<Category>> findByParentId(@PathVariable Long parentId) {
+        List<Category> categories = categoryService.findByParentId(parentId);
+        return Result.success(categories);
+    }
+
+    @GetMapping("/level/{level}")
+    @Operation(summary = "按层级查询分类")
+    public Result<List<Category>> findByLevel(@PathVariable Integer level) {
+        List<Category> categories = categoryService.findByLevel(level);
+        return Result.success(categories);
+    }
+
+    @PutMapping("/status")
+    @Operation(summary = "更新分类状态")
+    public Result<String> updateStatus(@RequestParam Long id, @RequestParam Integer status) {
+        categoryService.updateStatus(id, status);
+        return Result.success("状态更新成功");
+    }
 }

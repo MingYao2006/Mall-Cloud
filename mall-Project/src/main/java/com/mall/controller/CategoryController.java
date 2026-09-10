@@ -3,7 +3,7 @@ package com.mall.controller;
 import com.mall.common.BusinessException;
 import com.mall.common.Result;
 import com.mall.entity.Category;
-import com.mall.service.CategoryService;
+import com.mall.feign.CategoryServiceFeignClient;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,13 +15,10 @@ import java.util.List;
 @RequestMapping("/category")
 public class CategoryController {
 
-//    @Autowired 字段注入：写法简单，适合快速开发
-//    构造方法注入：更安全、更规范，适合生产环境
-    private final CategoryService categoryService;
+    private final CategoryServiceFeignClient categoryFeignClient;
 
-    public CategoryController(CategoryService categoryService) {
-
-        this.categoryService = categoryService;
+    public CategoryController(CategoryServiceFeignClient categoryFeignClient) {
+        this.categoryFeignClient = categoryFeignClient;
     }
 
     /**
@@ -30,11 +27,11 @@ public class CategoryController {
      */
     @GetMapping("/{id}")
     public Result<Category> findById(@PathVariable Long id) {
-        Category category = categoryService.findById(id);
-        if (category == null) {
+        Result<Category> result = categoryFeignClient.getCategoryById(id);
+        if (result == null || result.getData() == null) {
             throw new BusinessException(404, "分类不存在");
         }
-        return Result.success(category);
+        return result;
     }
 
     /**
@@ -43,8 +40,7 @@ public class CategoryController {
      */
     @PostMapping
     public Result<String> add(@RequestBody Category category) {
-        categoryService.add(category);
-        return Result.success("添加成功");
+        return categoryFeignClient.addCategory(category);
     }
 
     /**
@@ -53,8 +49,7 @@ public class CategoryController {
      */
     @PutMapping
     public Result<String> update(@RequestBody Category category) {
-        categoryService.update(category);
-        return Result.success("更新成功");
+        return categoryFeignClient.updateCategory(category);
     }
 
     /**
@@ -63,8 +58,7 @@ public class CategoryController {
      */
     @DeleteMapping("/{id}")
     public Result<String> deleteById(@PathVariable Long id) {
-        categoryService.deleteById(id);
-        return Result.success("删除成功");
+        return categoryFeignClient.deleteCategory(id);
     }
 
     /**
@@ -73,8 +67,7 @@ public class CategoryController {
      */
     @GetMapping("/children/{parentId}")
     public Result<List<Category>> findByParentId(@PathVariable Long parentId) {
-        List<Category> categories = categoryService.findByParentId(parentId);
-        return Result.success(categories);
+        return categoryFeignClient.findByParentId(parentId);
     }
 
     /**
@@ -83,8 +76,7 @@ public class CategoryController {
      */
     @GetMapping("/level/{level}")
     public Result<List<Category>> findByLevel(@PathVariable Integer level) {
-        List<Category> categories = categoryService.findByLevel(level);
-        return Result.success(categories);
+        return categoryFeignClient.findByLevel(level);
     }
 
     /**
@@ -93,8 +85,7 @@ public class CategoryController {
      */
     @GetMapping("/list")
     public Result<List<Category>> findAll() {
-        List<Category> categories = categoryService.findAll();
-        return Result.success(categories);
+        return categoryFeignClient.listCategories();
     }
 
     /**
@@ -103,7 +94,6 @@ public class CategoryController {
      */
     @PutMapping("/status")
     public Result<String> updateStatus(@RequestParam Long id, @RequestParam Integer status) {
-        categoryService.updateStatus(id, status);
-        return Result.success("状态更新成功");
+        return categoryFeignClient.updateStatus(id, status);
     }
 }
