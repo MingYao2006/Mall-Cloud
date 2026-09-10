@@ -63,10 +63,10 @@ public interface ProductServiceFeignClient {
 
     /**
      * 条件组合分页查询
-     * GET /api/product/page/query?categoryId=1&name=手机&status=1&minPrice=100&maxPrice=10000&pageNum=1&pageSize=10
+     * POST /api/product/page/query
      */
-    @GetMapping("/page/query")
-    Result<PageResult> listProductsByCondition(ProductQuery query);
+    @PostMapping("/page/query")
+    Result<PageResult> listProductsByCondition(@RequestBody ProductQuery query);
 
     /**
      * 校验商品是否存在

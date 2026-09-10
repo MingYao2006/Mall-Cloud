@@ -1,6 +1,5 @@
 package com.mall.search.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.mall.search.entity.EsProduct;
 import com.mall.search.entity.Product;
 import com.mall.search.mapper.ProductMapper;
@@ -38,6 +37,7 @@ public class ProductSearchService {
      * 搜索商品
      */
     public List<EsProduct> searchProducts(String keyword) {
+        log.info("开始搜索商品，关键词: {}", keyword);
         // 使用 Criteria API 构建查询，避免 JSON 拼接注入风险
         Criteria criteria = new Criteria("name").matches(keyword)
                 .or("brand").matches(keyword)
@@ -45,31 +45,31 @@ public class ProductSearchService {
         CriteriaQuery query = new CriteriaQuery(criteria);
 
         SearchHits<EsProduct> searchHits = elasticsearchOperations.search(query, EsProduct.class);
-        return searchHits.getSearchHits().stream()
+        List<EsProduct> result = searchHits.getSearchHits().stream()
                 .map(SearchHit::getContent)
                 .collect(Collectors.toList());
+        log.info("搜索完成，关键词: {}，命中 {} 条结果", keyword, result.size());
+        return result;
     }
 
     /**
      * 按分类搜索商品
      */
     public List<EsProduct> searchByCategory(Long categoryId) {
-//        LambdaQueryWrapper<Product> queryWrapper = new LambdaQueryWrapper<>();
-//        queryWrapper.eq(Product::getCategoryId, categoryId);
-//
-//        return productMapper.selectList(queryWrapper);
-        return esProductRepository.findByCategoryId(categoryId);
+        log.info("开始按分类搜索商品，分类ID: {}", categoryId);
+        List<EsProduct> products = esProductRepository.findByCategoryId(categoryId);
+        log.info("分类搜索完成，分类ID: {}，命中 {} 条结果", categoryId, products.size());
+        return products;
     }
 
     /**
      * 按品牌搜索商品
      */
     public List<EsProduct> searchByBrand(String brand) {
-//        LambdaQueryWrapper<Product> queryWrapper = new LambdaQueryWrapper<>();
-//        queryWrapper.like(Product::getBrand, brand);
-//
-//        return productMapper.selectList(queryWrapper);
-        return esProductRepository.findByBrand(brand);
+        log.info("开始按品牌搜索商品，品牌: {}", brand);
+        List<EsProduct> products = esProductRepository.findByBrand(brand);
+        log.info("品牌搜索完成，品牌: {}，命中 {} 条结果", brand, products.size());
+        return products;
     }
 
     /**

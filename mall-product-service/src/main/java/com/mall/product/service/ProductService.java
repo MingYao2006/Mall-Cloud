@@ -42,6 +42,8 @@ public class ProductService {
     private final CategoryMapper categoryMapper;
     @Autowired
     private ProductServiceFeignClient productServiceFeignClient;
+    @Autowired
+    private OssService ossService;
 
     public ProductService(ProductMapper productMapper, CategoryMapper categoryMapper) {
         this.productMapper = productMapper;
@@ -221,8 +223,8 @@ public class ProductService {
     }
 
     /**
-     * todo根据ID查询商品（带缓存穿透保护）
-     * todo互斥锁解决缓存击穿
+     * 根据ID查询商品（带缓存穿透保护）
+     * 互斥锁解决缓存击穿
      * 使用 MyBatis Plus 的 selectById 方法
      *
      * @param id 商品ID
@@ -825,19 +827,70 @@ public class ProductService {
             // 分类条件
             wrapper.eq(query.getCategoryId() != null, Product::getCategoryId, query.getCategoryId());
 
-            // 状态条件
-            wrapper.eq(query.getStatus() != null, Product::getStatus, query.getStatus());
+            // 状态条件：未指定状态时，默认查询上架商品（status=1）
+            Integer status = query.getStatus() != null ? query.getStatus() : 1;
+            wrapper.eq(Product::getStatus, status);
 
-            // 关键字模糊查询
-            wrapper.like(query.getKeyword() != null && !query.getKeyword().isEmpty(),
-                    Product::getName, query.getKeyword());
+            // 关键字模糊查询：优先使用 keyword，为空时回退到 name
+            String searchKeyword = query.getKeyword();
+            if ((searchKeyword == null || searchKeyword.isEmpty())
+                    && query.getName() != null && !query.getName().isEmpty()) {
+                searchKeyword = query.getName();
+            }
+            wrapper.like(searchKeyword != null && !searchKeyword.isEmpty(),
+                    Product::getName, searchKeyword);
 
             // 价格区间
             wrapper.ge(query.getMinPrice() != null, Product::getPrice, query.getMinPrice());
             wrapper.le(query.getMaxPrice() != null, Product::getPrice, query.getMaxPrice());
 
-            // 排序
-            wrapper.orderByAsc(Product::getSort);
+            // 排序：根据 orderBy / orderType 动态排序（白名单校验防 SQL 注入）
+            String orderBy = query.getOrderBy();
+            boolean asc = "asc".equalsIgnoreCase(query.getOrderType());
+            if (orderBy == null || orderBy.isEmpty()) {
+                // 默认按排序字段升序
+                wrapper.orderByAsc(Product::getSort);
+            } else {
+                switch (orderBy) {
+                    case "price":
+                        if (asc) {
+                            wrapper.orderByAsc(Product::getPrice);
+                        } else {
+                            wrapper.orderByDesc(Product::getPrice);
+                        }
+                        break;
+                    case "sales":
+                        if (asc) {
+                            wrapper.orderByAsc(Product::getSales);
+                        } else {
+                            wrapper.orderByDesc(Product::getSales);
+                        }
+                        break;
+                    case "createTime":
+                        if (asc) {
+                            wrapper.orderByAsc(Product::getCreateTime);
+                        } else {
+                            wrapper.orderByDesc(Product::getCreateTime);
+                        }
+                        break;
+                    case "id":
+                        if (asc) {
+                            wrapper.orderByAsc(Product::getId);
+                        } else {
+                            wrapper.orderByDesc(Product::getId);
+                        }
+                        break;
+                    case "sort":
+                    default:
+                        if (asc) {
+                            wrapper.orderByAsc(Product::getSort);
+                        } else {
+                            wrapper.orderByDesc(Product::getSort);
+                        }
+                        break;
+                }
+            }
+            // 次要排序：创建时间倒序
             wrapper.orderByDesc(Product::getCreateTime);
 
             // 4. 执行分页查询
@@ -939,15 +992,16 @@ public class ProductService {
                 throw new BusinessException(404, "商品不存在");
             }
 
-            // 3. 校验库存是否充足
-            if (product.getStock() < quantity) {
-                throw new BusinessException(400, "库存不足，当前库存：" + product.getStock());
+            // 3. 校验库存是否充足（库存为 null 时按 0 处理，避免空指针）
+            int currentStock = product.getStock() == null ? 0 : product.getStock();
+            if (currentStock < quantity) {
+                throw new BusinessException(400, "库存不足，当前库存：" + currentStock);
             }
 
             // 4. 使用 LambdaUpdateWrapper 扣减库存
             LambdaUpdateWrapper<Product> updateWrapper = new LambdaUpdateWrapper<>();
             updateWrapper.eq(Product::getId, id)
-                    .set(Product::getStock, product.getStock() - quantity)
+                    .set(Product::getStock, currentStock - quantity)
                     .set(Product::getUpdateTime, LocalDateTime.now());
 
             int result = productMapper.update(null, updateWrapper);
@@ -1128,7 +1182,7 @@ public class ProductService {
         // ==================== 图片上传 ====================
 
         /**
-         * 上传商品主图
+         * 上传商品主图（OSS）
          */
         public Result<String> uploadMainImage (org.springframework.web.multipart.MultipartFile file){
             // 1. 校验文件
@@ -1148,26 +1202,9 @@ public class ProductService {
                 return Result.error(400, "图片大小不能超过5MB");
             }
 
-            // 4. 生成文件名
-            String originalFilename = file.getOriginalFilename();
-            String extension = originalFilename != null && originalFilename.contains(".")
-                    ? originalFilename.substring(originalFilename.lastIndexOf("."))
-                    : ".jpg";
-            String newFilename = "product_" + System.currentTimeMillis() + extension;
-
-            // 5. 保存文件
+            // 4. 上传到 OSS
             try {
-                String projectPath = System.getProperty("user.dir");
-                String uploadDir = projectPath + "/uploads/product/";
-                java.io.File dir = new java.io.File(uploadDir);
-                if (!dir.exists()) {
-                    dir.mkdirs();
-                }
-                java.io.File destFile = new java.io.File(uploadDir + newFilename);
-                file.transferTo(destFile);
-
-                // 6. 返回图片URL
-                String imageUrl = "/uploads/product/" + newFilename;
+                String imageUrl = ossService.upload(file, "product/");
                 return Result.success(imageUrl);
             } catch (Exception e) {
                 return Result.error(500, "上传失败：" + e.getMessage());

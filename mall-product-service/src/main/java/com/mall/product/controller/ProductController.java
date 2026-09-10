@@ -146,10 +146,10 @@ public class ProductController {
 
     /**
      * 条件组合分页查询
-     * GET /product/page/query?categoryId=1&name=手机&status=1&minPrice=100&maxPrice=10000&pageNum=1&pageSize=10
+     * POST /product/page/query
      */
-    @GetMapping("/page/query")
-    public Result<PageResult> listProductsByCondition(ProductQuery query) {
+    @PostMapping("/page/query")
+    public Result<PageResult> listProductsByCondition(@RequestBody ProductQuery query) {
         PageResult pageResult = productService.listProductsByCondition(query);
         return Result.success(pageResult);
     }

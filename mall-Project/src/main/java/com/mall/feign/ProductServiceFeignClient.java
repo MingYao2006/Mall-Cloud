@@ -6,20 +6,43 @@ import com.mall.common.Result;
 import com.mall.entity.Product;
 import com.mall.entity.query.ProductQuery;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
 @FeignClient(
-        name = "mall-project",
+        name = "mall-product-service",
         contextId = "productServiceFeignClient",
-        path = "/api/product"
+        path = "/product"
 )
 public interface ProductServiceFeignClient {
     
     /**
+     * 添加商品
+     * POST /product
+     */
+    @PostMapping
+    Result<Object> add(@RequestBody Product product);
+
+    /**
+     * 更新商品
+     * PUT /product
+     */
+    @PutMapping
+    Result<Object> update(@RequestBody Product product);
+
+    /**
+     * 删除商品
+     * DELETE /product/{id}
+     */
+    @DeleteMapping("/{id}")
+    Result<Object> delete(@PathVariable("id") Long id);
+
+    /**
      * 根据 ID 查询商品
-     * GET /api/product/{id}
+     * GET /product/{id}
      */
     @GetMapping("/{id}")
     Result<Product> findById(@PathVariable("id") Long id);
@@ -64,10 +87,10 @@ public interface ProductServiceFeignClient {
 
     /**
      * 条件组合分页查询
-     * GET /api/product/page/query?categoryId=1&name=手机&status=1&minPrice=100&maxPrice=10000&pageNum=1&pageSize=10
+     * POST /api/product/page/query
      */
-    @GetMapping("/page/query")
-    Result<PageResult> listProductsByCondition(ProductQuery query);
+    @PostMapping("/page/query")
+    Result<PageResult> listProductsByCondition(@RequestBody ProductQuery query);
 
     /**
      * 校验商品是否存在
@@ -132,9 +155,16 @@ public interface ProductServiceFeignClient {
 
     /**
      * 添加库存
-     * POST /product/
+     * POST /product/stock/increase/{id}
      */
-    @PostMapping("/stock/decrease/{id}")
-    Result<Object> increaseStock(@PathVariable Long id,@RequestParam Integer quantity);
+    @PostMapping("/stock/increase/{id}")
+    Result<Object> increaseStock(@PathVariable("id") Long id, @RequestParam("quantity") Integer quantity);
+
+    /**
+     * 上传商品主图
+     * POST /product/upload/image（multipart/form-data）
+     */
+    @PostMapping(value = "/upload/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    Result<String> uploadImage(@RequestParam("file") MultipartFile file);
 }
 
