@@ -1,0 +1,4 @@
+# Bootstrap 配置文件 - 仅服务发现
+spring:
+  application:
+    name: mall-project-admin

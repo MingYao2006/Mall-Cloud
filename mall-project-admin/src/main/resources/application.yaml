@@ -1,0 +1,50 @@
+# 管理端聚合服务配置
+server:
+  port: 9091
+  # 移除 context-path: /api
+  # 网关 StripPrefix=2 后，请求到达时路径已无 /api 前缀
+  # 例：前端 /api/admin/product → 网关剥离 /api/admin → 聚合服务收到 /product
+
+spring:
+  application:
+    name: mall-project-admin
+  cloud:
+    nacos:
+      config:
+        enabled: false
+        import-check:
+          enabled: false
+      discovery:
+        server-addr: localhost:8848
+        namespace: public
+        group: DEFAULT_GROUP
+        register-enabled: true
+        username: nacos
+        password: nacos
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+logging:
+  level:
+    com.alibaba.nacos: WARN
+    com.alibaba.nacos.client.naming: WARN
+    com.alibaba.nacos.client.config: WARN
+
+# Knife4j 配置
+knife4j:
+  enable: true
+
+# SpringDoc 配置
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: '管理端API'
+      paths-to-match: '/**'
+      packages-to-scan: com.mall.admin
