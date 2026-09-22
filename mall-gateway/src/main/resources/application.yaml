@@ -11,74 +11,43 @@ spring:
         username: nacos
         password: nacos
     gateway:
-      # 路由规则：根据路径前缀转发到对应微服务
+      # 全局跨域配置（统一在网关层处理，聚合服务不再各自配置 CORS）
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowed-origin-patterns: "*"
+            allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
+            allowed-headers: "*"
+            allow-credentials: true
+            max-age: 3600
+      # 路由规则：C端/B端流量隔离 + 支付回调专用路由
       routes:
-        - id: user-service
-          uri: lb://mall-user-service
+        # ============ C 端流量 → mall-project (9090) ============
+        - id: customer-api
+          uri: lb://mall-project
           predicates:
-            - Path=/api/user/**,/api/users/**
+            - Path=/api/c/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=2    # /api/c/users/login → /users/login
 
-        - id: product-service
-          uri: lb://mall-product-service
+        # ============ B 端流量 → mall-project-admin (9091) ============
+        - id: admin-api
+          uri: lb://mall-project-admin
           predicates:
-            - Path=/api/product/**
+            - Path=/api/admin/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=2    # /api/admin/product → /product
 
-        - id: order-service
-          uri: lb://mall-order-service
+        # ============ 支付宝回调（公共路由，不经过鉴权） ============
+        - id: payment-notify
+          uri: lb://mall-project
           predicates:
-            - Path=/api/order/**
+            - Path=/api/payment/alipay/notify
           filters:
-            - StripPrefix=1
+            - StripPrefix=1    # /api/payment/alipay/notify → /payment/alipay/notify
 
-        - id: cart-service
-          uri: lb://mall-cart-service
+        # ============ 静态资源（上传文件访问） ============
+        - id: uploads
+          uri: lb://mall-project
           predicates:
-            - Path=/api/cart/**
-          filters:
-            - StripPrefix=1
-
-        - id: payment-service
-          uri: lb://mall-payment-service
-          predicates:
-            - Path=/api/payment/**
-          filters:
-            - StripPrefix=1
-
-        - id: seckill-service
-          uri: lb://mall-seckill-service
-          predicates:
-            - Path=/api/seckill/**
-          filters:
-            - StripPrefix=1
-
-        - id: category-service
-          uri: lb://mall-category-service
-          predicates:
-            - Path=/api/category/**
-          filters:
-            - StripPrefix=1
-
-        - id: coupon-service
-          uri: lb://mall-coupon-service
-          predicates:
-            - Path=/api/coupon/**
-          filters:
-            - StripPrefix=1
-
-        - id: comment-service
-          uri: lb://mall-comment-service
-          predicates:
-            - Path=/api/comment/**
-          filters:
-            - StripPrefix=1
-
-        - id: search-service
-          uri: lb://mall-search-service
-          predicates:
-            - Path=/api/search/**
-          filters:
-            - StripPrefix=1
+            - Path=/uploads/**

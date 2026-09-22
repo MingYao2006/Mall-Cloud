@@ -15,105 +15,155 @@ import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
 
+/**
+ * 网关全局认证过滤器
+ * <p>
+ * 职责：
+ * 1. C 端白名单放行（登录/注册/验证码/商品浏览/分类浏览/秒杀列表/优惠券列表/支付回调）
+ * 2. 所有非白名单请求必须携带有效 JWT Token
+ * 3. B 端请求（/api/admin/**）额外校验 role==1（管理员），非管理员返回 403
+ * 4. 解析 Token 后将 userId、username、role 注入请求头，下游聚合服务可直接取用
+ */
 @Slf4j
 @Component
 public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
     private static final String SECRET = "mall-project-secret-key-2026-for-jwt-token-generation";
 
-    // 白名单：不需要登录就能访问的路径
-
-    private static final List<String> WHITE_LIST = List.of(
-            "/api/user/login",
-            "/api/users/login",
-
-            "/api/user/register",
-            "/api/users/register",
-
-            "/api/user/code",
-            "/api/users/code",
-
-            "/api/user/login/code",
-            "/api/users/login/code",
-
-            "/api/user/health",
-            "/api/users/health",
-
-            "/api/payment/alipay/notify",
-
-            "/api/payment/test/token"
+    // C 端白名单（精确路径）：不需要登录就能访问的接口
+    // 注意：路径已包含 /api/c 前缀（网关随后 StripPrefix=2 再转发给聚合服务）
+    private static final Set<String> C_WHITE_EXACT = Set.of(
+            // 用户认证相关
+            "/api/c/users/login",
+            "/api/c/users/login/code",
+            "/api/c/users/register",
+            "/api/c/users/code",
+            "/api/c/users/wx-login",
+            "/api/c/users/health",
+            "/api/c/users/test",
+            // 商品浏览（只读）
+            "/api/c/product/list",
+            "/api/c/product/search",
+            "/api/c/product/page",
+            "/api/c/product/page/query",
+            "/api/c/product/category",
+            "/api/c/product/status",
+            // 分类浏览（只读）
+            "/api/c/category/list",
+            "/api/c/category/children",
+            "/api/c/category/level",
+            // 秒杀/优惠券列表（只读）
+            "/api/c/seckill/list",
+            "/api/c/coupon/list"
     );
+
+    // C 端白名单（正则）：带路径变量的只读接口
+    // 用 \d+ 限定数字 ID，避免把 /product/stock/decrease/{id}、/product/sales/{id}
+    // 这类会改数据的接口一并放行
+    private static final List<Pattern> C_WHITE_PATTERN = List.of(
+            Pattern.compile("^/api/c/product/\\d+$"),
+            Pattern.compile("^/api/c/product/category/\\d+$"),
+            Pattern.compile("^/api/c/product/status/\\d+$"),
+            Pattern.compile("^/api/c/category/\\d+$"),
+            Pattern.compile("^/api/c/category/children/\\d+$"),
+            Pattern.compile("^/api/c/category/level/\\d+$"),
+            Pattern.compile("^/api/c/comment/product/\\d+$")
+    );
+
+    // 公共白名单：支付回调（C 端和 B 端都不需要 Token）
+    private static final Set<String> PUBLIC_WHITE_LIST = Set.of(
+            "/api/payment/alipay/notify"
+    );
+
+    /**
+     * 判断路径是否命中 C 端免登录白名单
+     */
+    private boolean isCustomerWhitePath(String path) {
+        if (C_WHITE_EXACT.contains(path)) {
+            return true;
+        }
+        for (Pattern pattern : C_WHITE_PATTERN) {
+            if (pattern.matcher(path).matches()) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        // 从 exchange 中获取请求对象
-        ServerHttpRequest request = (ServerHttpRequest) exchange.getRequest();
-        // 获取请求的路径
+        ServerHttpRequest request = exchange.getRequest();
         String path = request.getURI().getPath();
-        
-        // 1. 白名单放行：检查请求路径是否在白名单中
-        for (String whitePath : WHITE_LIST) {
-            // 如果请求路径包含白名单中的路径
-            if (path.contains(whitePath)) {
-                // 直接放行，不进行 Token 验证
-                return chain.filter(exchange);
-            }
+
+        // 1. 公共白名单放行（支付回调等）
+        if (PUBLIC_WHITE_LIST.contains(path)) {
+            return chain.filter(exchange);
         }
 
-        // 2. 获取 Token：从请求头中获取 Authorization 字段
+        // 2. C 端白名单放行
+        if (isCustomerWhitePath(path)) {
+            return chain.filter(exchange);
+        }
+
+        // 3. 获取 Token
         String token = request.getHeaders().getFirst("Authorization");
-        // 如果 Token 为空或空字符串
         if (token == null || token.isEmpty()) {
-            // 记录警告日志
             log.warn("请求未携带 Token，路径: {}", path);
-            // 设置响应状态码为 401 未授权
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            // 返回响应，结束请求
             return exchange.getResponse().setComplete();
         }
-        
-        // 去掉 Bearer 前缀：如果 Token 以 "Bearer " 开头
+
         if (token.startsWith("Bearer ")) {
-            // 截取 "Bearer " 之后的部分，得到真正的 Token
             token = token.substring(7);
         }
-        
-        // 3. 验证 Token：使用 JWT 库验证 Token 的有效性
+
+        // 4. 验证 Token
         try {
-            // 使用密钥生成 HMAC-SHA 密钥对象
             SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes());
-            // 构建 JWT 解析器，解析 Token 并获取 Claims（声明信息）
             Claims claims = Jwts.parserBuilder()
-                    .setSigningKey(key)  // 设置签名密钥
-                    .build()  // 构建解析器
-                    .parseClaimsJws(token)  // 解析 Token
-                    .getBody();  // 获取 Token 的主体部分（Claims）
+                    .setSigningKey(key)
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
 
-            // 4. 把 userId 放进请求头，下游服务可以直接取
-            // 从 Claims 中获取用户 ID（subject 字段）
             String userId = claims.getSubject();
-            
-            // 构建新的请求对象，添加自定义请求头
-            ServerHttpRequest newRequest = request.mutate()
-                    .header("X-User-Id", userId)  // 添加用户 ID 到请求头
-                    .header("X-Username", claims.get("username", String.class))  // 添加用户名到请求头
-                    .build();  // 构建新的请求对象
+            String username = claims.get("username", String.class);
+            String roleStr = claims.get("role", String.class);
+            String role = roleStr != null ? roleStr : "0";
 
-            // 使用新的请求对象继续执行过滤器链
+            // 5. B 端请求校验管理员权限
+            if (path.startsWith("/api/admin/")) {
+                if (!"1".equals(role)) {
+                    log.warn("非管理员访问管理端接口，路径: {}, userId: {}", path, userId);
+                    exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
+                    exchange.getResponse().getHeaders().add("Content-Type", "application/json;charset=UTF-8");
+                    return exchange.getResponse().writeWith(
+                            Mono.just(exchange.getResponse().bufferFactory()
+                                    .wrap(("{\"code\":403,\"message\":\"无管理员权限\"}").getBytes()))
+                    );
+                }
+            }
+
+            // 6. 注入用户信息到请求头，下游聚合服务可直接取用
+            ServerHttpRequest newRequest = request.mutate()
+                    .header("X-User-Id", userId)
+                    .header("X-Username", username != null ? username : "")
+                    .header("X-Role", role)
+                    .build();
+
             return chain.filter(exchange.mutate().request(newRequest).build());
         } catch (Exception e) {
-            // Token 验证失败，记录警告日志
             log.warn("Token 验证失败，路径: {}", path);
-            // 设置响应状态码为 401 未授权
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            // 返回响应，结束请求
             return exchange.getResponse().setComplete();
         }
     }
 
     @Override
     public int getOrder() {
-        return -1;  // 优先级最高
+        return -1;
     }
 }
