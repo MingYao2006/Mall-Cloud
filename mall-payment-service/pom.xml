@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.heima</groupId>
+        <groupId>com.oymy</groupId>
         <artifactId>mall-parent</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
@@ -126,7 +126,7 @@
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.heima</groupId>
+            <groupId>com.oymy</groupId>
             <artifactId>mall-Project</artifactId>
             <version>1.0-SNAPSHOT</version>
             <scope>compile</scope>
@@ -141,7 +141,7 @@
 
         <!-- Mall Common -->
         <dependency>
-            <groupId>com.heima</groupId>
+            <groupId>com.oymy</groupId>
             <artifactId>mall-common</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>

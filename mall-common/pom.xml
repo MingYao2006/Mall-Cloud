@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.heima</groupId>
+        <groupId>com.oymy</groupId>
         <artifactId>mall-parent</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
@@ -22,6 +22,13 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <scope>provided</scope>
+        </dependency>
+
+        <!-- MyBatis-Plus Core（MetaObjectHandler 接口、MetaObject 等自动填充所需类） -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-core</artifactId>
+            <version>3.5.5</version>
         </dependency>
 
         <!-- Redis（RedisService 需要） -->
@@ -59,4 +66,26 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Maven 编译插件：必须显式声明 Lombok 注解处理器 -->
+            <!-- JDK 23 起 javac 不再从 classpath 自动发现注解处理器，漏配会导致 @Data/@Slf4j 等彻底失效 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <encoding>UTF-8</encoding>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>1.18.36</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

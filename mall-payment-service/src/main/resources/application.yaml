@@ -1,0 +1,87 @@
+server:
+  port: 8089
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+spring:
+  application:
+    name: mall-payment-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+        username: nacos
+        password: nacos
+      config:
+        server-addr: localhost:8848
+        file-extension: yaml
+        username: nacos
+        password: nacos
+        import-check:
+          enabled: false
+    sentinel:
+      transport:
+        dashboard: localhost:8080
+        port: 8722
+      eager: true
+      datasource:
+        flow:
+          nacos:
+            server-addr: localhost:8848
+            username: nacos
+            password: nacos
+            data-id: ${spring.application.name}-flow-rules
+            group-id: SENTINEL_GROUP
+            data-type: json
+            rule-type: flow
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/mall?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+
+knife4j:
+  enable: true
+
+# 开启 Feign 对 Sentinel 的支持
+feign:
+  sentinel:
+    enabled: true
+
+logging:
+  level:
+    com.mall.payment: debug
+
+payment:
+  wechat:
+    app-id: your_wechat_appid
+    mch-id: your_mch_id
+    api-key: your_api_key
+    notify-url: http://your-domain/api/payment/handleCallBack/wechat
+    private-key-path: classpath:/cert/apiclient_key.pem
+    cert-path: classpath:/cert/apiclient_cert.pem
+  
+  alipay:
+    app-id: 9021000167605065
+    private-key: MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCcpzXfB2sizTM2wifWrjhXa8wV907Qpk1VgOki+X84rPW1SH5DEsFQVLXOmmSnrbbgj/MDsXOwVosuJQVPqYeg4ZSPuq8VHXz/DIooRfztLofidTQuWrb7UPgEipZ8wcZidfVkvKkw1Tql1fbBe8WYSAqhdD76U/vOx0RmBRLUeA7Grv6CQuxMa1MMs8G8obFfFXArzR/tEPxg2ys37BARPks3tTg0gEs9u6IKHCVr2lLlM3JzHdUqAc7Cc3XY5qwvYrm/bcjVDT7uOPqJmNz1nkqrVWcwKhada1fKXneupKm54ZwQmsIPnQ0DiSlsU8t9eKrCfJDJAyDOkiqUiZrfAgMBAAECggEAPliiLSCDuDcY8es19dAi5lAlynxB5vK5BpWms9++jWzw4XR3o/Q78d+0+AQkmUOe7CL+YfLnC0B2ZigfxAPB0frVqJpxAiNZUxzHg53POwpw1GU3HlfGSaGBBDWwDPkGHru5rZ0UbTYAAG52pazACIpriLR+OBzis/pEs6HDS8HZF1iZH4Yvtm/lbnOYl1KDrDnRbA7okNl2nMmO0dRcU1HN5N+HykHE/Lus3I8+pb1cCRsLkdcjCbVx2uJH4O8TwMJiUjSTd7N9iyrhQr2sCeE8p0jSYQkUySdOWDwTnK8V1nHatUM2zwgCwxSxHte/YyRywZk/RhEzrdPfONAewQKBgQDMheXp+SgtLis3VL2yAfmX1Tf+Gwneyais6Hd0a4TKxeBlbVA1RSU8hWcSivCJ0/4yQJmI1FOtF2+pzRhGW5JEiij/Tc6SM1VfpkQDpOWmssRwi8zS1KERirx1Te7l5W52buX5ik1kupQkohO1OvF4lL1Va8+0HMpNoaeKqDoFvwKBgQDEFOWJ4WA+NETXHpCnfxvsrXLhMy4XrE3nbkJJ466xDfHBfR5KBpyAFguo9sNNu3zT6nthwTuWbpH92lqydNmiY4OQfU/4xCOldx9t0D8iXG9+T2pVYxaPpWnwxWopu0mW3m8dU5b8H67l5YrPF7Cu4ofJcoyfHvPbz+zrvuTy4QKBgA144H06EWBwgx5A8cHxCVzsCaUuaMcJJ5hEM+IyVuv4fuCPg9IOfPZwnyqEhnW9xifPQ43U1rI3Mf7QaMHxtD/ZjfvLR0kwInaLgD1xNkN10STMwLA+m2GJbwKXIJ56L32TrohyiMiS1cFX/85XVKKpwZMH6AWoQ9c7R8sFa9UHAoGAcZRRKb79CssoHRu9WuiL+lq2MrB8wIW0UpxRlY9nP3P+V7/r7aFKwf8DHgpiMwKpWe93LLbLl2XQ9ySmaLy63A+cw/NygXzL0Srhb7CzAWpdwuKpi3BsPyTn6unPhwDPra6G2ovy53RK0SxXbYIhfAwH766Euh8pzmfwqtXWtMECgYEAhD3VgYG9tHAkFbjURTmODH9b1V0ulNxtxzNiaW2R4stjDR1LDCkzdmDjeQcR9EbJa0rJK6M4z1zcu8ImKDYJAV6n9Y9Ecw3rLqvyWdHeEypnToN78iLwNdB4vMMcts+fG59cu+LgsBjNScuXMLcABedMyEXMH+wU3bDShMQXw9c=
+    public-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnKc13wdrIs0zNsIn1q44V2vMFfdO0KZNVYDpIvl/OKz1tUh+QxLBUFS1zppkp6224I/zA7FzsFaLLiUFT6mHoOGUj7qvFR18/wyKKEX87S6H4nU0Llq2+1D4BIqWfMHGYnX1ZLypMNU6pdX2wXvFmEgKoXQ++lP7zsdEZgUS1HgOxq7+gkLsTGtTDLPBvKGxXxVwK80f7RD8YNsrN+wQET5LN7U4NIBLPbuiChwla9pS5TNycx3VKgHOwnN12OasL2K5v23I1Q0+7jj6iZjc9Z5Kq1VnMCoWnWtXyl53rqSpueGcEJrCD50NA4kpbFPLfXiqwnyQyQMgzpIqlIma3wIDAQAB
+    alipay-public-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhg19LGAbSLHqWJXfUbMewRPHOVy81jpSh7CG4gePTIHCNOSJGe9xMM9xu4SL57GdoMztmfHskVZHPFQv4tqt1+zY5a5OgA45lcjB9bjtT9EtG19PIhGykbK1uPXd35dZk6epA89XAQ0gmr8Cfrb8eCDnRsgLJEM9RRi+cdcIkXl6oI/+piHzLnmKfRvzIEZB4KP4rpR/urtze0QWNGjfpsMuE52gDRkbAO0l5Sy4XKt03zwsL80SJ+HdNUqqAgXnBMTsQvnVgWQ+gbaykIJL3oqYP5q7C+i0TkagMScR6mEDjAins96H+/JBOZ2qhcHFSNZMMVVkgLG1C/JFnT+DMQIDAQAB
+#    gateway-url: https://openapi.alipay.com/gateway.do
+    gateway-url: https://openapi-sandbox.dl.alipaydev.com/gateway.do
+#    gateway-url: https://openapi.alipaydev.com/gateway.do
+    notify-url: https://impulse-mammary-worst.ngrok-free.dev/api/payment/alipay/notify
+    return-url:  http://localhost:8080/pay-result.html
