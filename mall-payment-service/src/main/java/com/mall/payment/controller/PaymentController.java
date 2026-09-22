@@ -6,6 +6,8 @@ import com.mall.payment.dto.CreatePaymentRequest;
 import com.mall.payment.entity.Payment;
 import com.mall.payment.service.PaymentService;
 import com.mall.payment.service.strategy.AlipayStrategy;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
+@Tag(name = "支付服务", description = "支付相关接口")
 @RestController
 @RequestMapping("/api/payment")
 public class PaymentController {
@@ -30,6 +33,7 @@ public class PaymentController {
     /**
      * 创建支付
      */
+    @Operation(summary = "创建支付")
     @PostMapping("/create")
     public Result<Map<String, Object>> createPayment(@RequestBody @Valid CreatePaymentRequest request,
                                                      @RequestHeader(value = "X-User-Id", required = false) String userIdHeader) {
@@ -76,6 +80,7 @@ public class PaymentController {
     /**
      * 处理支付回调
      */
+    @Operation(summary = "处理支付回调")
     @PostMapping("/handleCallBack/{channel}")
     public Result<String> handleCallback(@RequestBody Map<String, String> params,
                                          @PathVariable("channel") String channel) {
@@ -110,6 +115,7 @@ public class PaymentController {
     /**
      * 查询支付状态
      */
+    @Operation(summary = "查询支付状态")
     @GetMapping("/getPayment/{orderNo}")
     public Result<Payment> getPaymentByOrderNo(@PathVariable("orderNo") String orderNo) {
         Payment paymentByOrderNo = paymentService.getPaymentByOrderNo(orderNo);
@@ -122,6 +128,7 @@ public class PaymentController {
     /**
      * 关闭支付
      */
+    @Operation(summary = "关闭支付")
     @PostMapping("/close/{paymentNo}")
     public Result<String> closePayment(@PathVariable("paymentNo") String paymentNo) {
         boolean success = paymentService.closePayment(paymentNo);
@@ -133,6 +140,7 @@ public class PaymentController {
         return Result.success("支付已关闭");
     }
 
+    @Operation(summary = "发起支付")
     @PostMapping("/pay")
     public Result<?> pay(@RequestParam String orderId,
                          @RequestParam String payType,
@@ -146,6 +154,7 @@ public class PaymentController {
         return Result.success("支付请求已接收，用户ID：" + userId);
     }
 
+    @Operation(summary = "支付宝异步通知")
     @PostMapping("/alipay/notify")
     public String alipaynotify(@RequestParam Map<String, String> params) {
         log.info("支付宝回调通知：{}", params);

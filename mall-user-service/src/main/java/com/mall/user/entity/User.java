@@ -1,6 +1,7 @@
 package com.mall.user.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -75,4 +76,24 @@ public class User {
     @TableLogic
     @TableField("is_deleted")
     private Integer isDeleted;
+
+    /**
+     * 角色：0-普通用户，1-管理员
+     */
+    private Integer role;
+
+    /**
+     * 微信 openid（微信小程序登录唯一标识）
+     * <p>
+     * 属于敏感标识，不对外序列化，避免通过 /users/info 等接口泄露。
+     */
+    @JsonIgnore
+    private String openid;
+
+    /**
+     * 微信 unionid（同一微信开放平台账号下的统一标识）
+     */
+    @JsonIgnore
+    private String unionid;
+
 }

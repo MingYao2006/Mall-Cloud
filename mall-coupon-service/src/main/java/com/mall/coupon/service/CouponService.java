@@ -1,6 +1,7 @@
 package com.mall.coupon.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.mall.common.RedisService;
 import com.mall.coupon.entity.Coupon;
 import com.mall.coupon.mapper.CouponMapper;
 import org.springframework.stereotype.Service;

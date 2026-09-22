@@ -1,220 +1,215 @@
 <template>
   <div class="home">
-    <!-- 悬浮粒子背景 -->
-    <div class="particles-bg">
-      <span v-for="i in 20" :key="'p'+i" class="particle" :style="particleStyle(i)"></span>
-    </div>
+    <!-- 第一屏：沉浸式 Hero 区 -->
+    <section class="hero" ref="heroRef">
+      <div class="hero-bg" :style="{ background: currentBanner.bg }"></div>
+      <div class="hero-content" @click="currentBanner.link()">
+        <h1 class="hero-title">{{ currentBanner.title }}</h1>
+        <p class="hero-subtitle">{{ currentBanner.sub }}</p>
+        <button class="hero-cta" @click.stop="currentBanner.link()">
+          立即探索
+          <el-icon><ArrowRight /></el-icon>
+        </button>
+      </div>
+      <div class="hero-nav">
+        <button v-for="(b, i) in banners" :key="i" 
+                :class="['hero-dot', { active: i === bannerIdx }]"
+                @click="bannerIdx = i"></button>
+      </div>
+    </section>
 
-    <!-- 主体区域 -->
-    <div class="hero-section">
-      <div class="hero-inner">
-        <div class="hero-cates" @mouseleave="hoverCate=null">
-          <!-- 骨架屏 -->
-          <template v-if="!categoriesLoaded">
-            <div v-for="i in 8" :key="'sk'+i" class="skeleton-cate"></div>
+    <!-- 第二屏：分类导航 -->
+    <section class="categories reveal" v-if="topCategories.length">
+      <div class="container">
+        <div class="section-header">
+          <h2 class="section-title" style="margin-bottom: 0">探索品类</h2>
+          <a @click="viewAllProducts">查看全部</a>
+        </div>
+        <div class="category-scroll">
+          <template v-for="cate in topCategories" :key="cate.id">
+            <div class="category-card"
+                 @click="goCategory(cate.id)">
+              <div class="category-icon" :style="{ background: cate.color || '#e8734a' }">
+                <span>{{ cate.name.charAt(0) }}</span>
+              </div>
+              <span class="category-name">{{ cate.name }}</span>
+            </div>
+            <div v-for="child in cate.children" :key="child.id"
+                 class="category-card"
+                 @click="goCategory(child.id)">
+              <div class="category-icon category-icon-sm" :style="{ background: cate.color || '#e8734a' }">
+                <span>{{ child.name.charAt(0) }}</span>
+              </div>
+              <span class="category-name">{{ child.name }}</span>
+            </div>
           </template>
-          <div v-for="c in topCategories" :key="c.id" class="hero-cate-item"
-               :class="{ active: activeCate === c.id }"
-               @mouseenter="hoverCate=c.id" @click="goCategory(c.id)">
-            <span>{{ c.name }}</span>
-            <el-icon><ArrowRight /></el-icon>
-            <Transition name="sub-fade">
-              <div v-show="hoverCate===c.id && c.children?.length" class="hero-subpop">
-                <a v-for="s in c.children" :key="s.id" @click.stop="goCategory(s.id)">{{ s.name }}</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 第三屏：秒杀倒计时 -->
+    <section class="seckill reveal" v-if="productsLoaded">
+      <div class="container">
+        <div class="seckill-header">
+          <div class="seckill-title-wrap">
+            <span class="seckill-icon">⚡</span>
+            <h2>限时秒杀</h2>
+          </div>
+          <div class="countdown">
+            <span class="cd-label">距结束</span>
+            <span class="cd-digit">{{ countdown.hh }}</span>
+            <span class="cd-sep">:</span>
+            <span class="cd-digit">{{ countdown.mm }}</span>
+            <span class="cd-sep">:</span>
+            <span class="cd-digit">{{ countdown.ss }}</span>
+          </div>
+        </div>
+        <div class="seckill-scroll" v-if="hotProducts.length">
+          <div v-for="p in hotProducts.slice(0, 4)" :key="p.id" 
+               class="seckill-card"
+               @click="$router.push(`/product/${p.id}`)">
+            <div class="sc-img">
+              <img v-if="p.mainImage" :src="p.mainImage" :alt="p.name" />
+              <div v-else class="sc-placeholder">{{ p.name?.charAt(0) }}</div>
+              <span class="sc-tag">HOT</span>
+            </div>
+            <div class="sc-info">
+              <p class="sc-name">{{ p.name }}</p>
+              <div class="sc-price">
+                <span class="sc-now price">¥{{ p.price?.toFixed(2) }}</span>
+                <span class="sc-was" v-if="p.originalPrice">¥{{ p.originalPrice?.toFixed(2) }}</span>
               </div>
-            </Transition>
+              <el-button type="primary" size="small" round @click.stop="addCart(p)">
+                抢购
+              </el-button>
+            </div>
           </div>
         </div>
+        <el-empty v-else description="暂无秒杀商品" />
+        <div class="seckill-more" @click="$router.push('/seckill')">
+          查看全部 <el-icon><ArrowRight /></el-icon>
+        </div>
+      </div>
+    </section>
 
-        <div class="hero-banner" ref="bannerRef"
-             @mouseenter="stopBanner=true" @mouseleave="stopBanner=false; bannerParallax={x:0,y:0}"
-             @mousemove="onBannerMove">
-          <div class="banner-track" :style="{ transform: `translateX(-${bannerIdx*100}%)` }">
-            <div v-for="(b,i) in banners" :key="i" class="banner-slide"
-                 :style="{ background: b.bg, transform: `translate(${bannerParallax.x*20}px, ${bannerParallax.y*20}px)` }"
-                 @click="b.link()">
-              <div class="banner-text">
-                <h2 class="anim-slide-up">{{ b.title }}</h2>
-                <p class="anim-slide-up delay-1">{{ b.sub }}</p>
-                <span class="banner-btn anim-slide-up delay-2">{{ b.btn }}</span>
+    <!-- 第四屏：精选推荐（混排） -->
+    <section class="featured reveal" v-if="productsLoaded">
+      <div class="container">
+        <div class="section-header">
+          <h2>{{ filterLabel || '精选推荐' }}</h2>
+          <a v-if="filterLabel" @click="clearFilter">查看全部</a>
+        </div>
+        
+        <el-empty v-if="!displayProducts.length" description="暂无商品">
+          <el-button type="primary" @click="clearFilter">返回全部商品</el-button>
+        </el-empty>
+        
+        <div v-else class="featured-grid">
+          <!-- 大图 Featured -->
+          <div v-if="displayProducts[0]" class="featured-main" @click="$router.push(`/product/${displayProducts[0].id}`)">
+            <div class="fm-img">
+              <img v-if="displayProducts[0].mainImage" :src="displayProducts[0].mainImage" />
+              <div v-else class="fm-placeholder">{{ displayProducts[0].name }}</div>
+            </div>
+            <div class="fm-info">
+              <h3>{{ displayProducts[0].name }}</h3>
+              <p class="fm-price">
+                <span class="price price-lg">¥{{ displayProducts[0].price?.toFixed(2) }}</span>
+                <span class="fm-original" v-if="displayProducts[0].originalPrice">¥{{ displayProducts[0].originalPrice?.toFixed(2) }}</span>
+              </p>
+              <el-button type="primary" round @click.stop="addCart(displayProducts[0])">
+                <el-icon><ShoppingCart /></el-icon> 加入购物车
+              </el-button>
+            </div>
+          </div>
+          
+          <!-- 小图网格 -->
+          <div class="featured-sub" v-if="displayProducts.length > 1">
+            <div v-for="p in displayProducts.slice(1, 5)" :key="p.id"
+                 class="fs-card"
+                 @click="$router.push(`/product/${p.id}`)">
+              <div class="fs-img">
+                <img v-if="p.mainImage" :src="p.mainImage" />
+                <div v-else class="fs-placeholder">{{ p.name?.charAt(0) }}</div>
+              </div>
+              <div class="fs-info">
+                <p class="fs-name">{{ p.name }}</p>
+                <p class="fs-price price">¥{{ p.price?.toFixed(2) }}</p>
               </div>
             </div>
           </div>
-          <div class="banner-dots">
-            <span v-for="(b,i) in banners" :key="i" :class="{ active: i===bannerIdx }" @click="bannerIdx=i"></span>
-          </div>
         </div>
+      </div>
+    </section>
 
-        <div class="hero-news">
-          <div class="news-header"><span>商城快讯</span><a @click="$router.push('/orders')">更多</a></div>
-          <div class="news-list">
-            <a v-for="(n,i) in news" :key="i" class="news-item" :style="{ animationDelay: i*0.3+'s' }">{{ n }}</a>
-          </div>
-          <div class="news-promo">
-            <div class="promo-box" @click="$router.push('/cart')"><el-icon :size="26"><ShoppingCart /></el-icon><span>购物车</span></div>
-            <div class="promo-box" @click="$router.push('/orders')"><el-icon :size="26"><Tickets /></el-icon><span>我的订单</span></div>
-            <div class="promo-box" @click="$router.push('/coupon')"><el-icon :size="26"><Ticket /></el-icon><span>优惠券</span></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== 搜索 / 分类筛选结果 ===== -->
-    <div v-if="filterLabel" class="section reveal-section">
-      <div class="section-hd">
-        <h3>🔍 {{ filterLabel }}</h3>
-        <span class="result-count">共 {{ displayProducts.length }} 件商品</span>
-        <a @click="clearFilter">✕ 清除筛选</a>
-      </div>
-      <div class="product-grid" v-if="displayProducts.length">
-        <div v-for="(p, idx) in displayProducts" :key="p.id" class="product-card card-3d reveal-item"
-             :style="{ transitionDelay: idx*0.05+'s' }"
-             @mousemove="onCardTilt" @mouseleave="resetCardTilt"
-             @click="$router.push(`/product/${p.id}`)">
-          <div class="pc-img">
-            <img :src="p.mainImage || 'https://placehold.co/300x300/eee/999?text='+p.name" :alt="p.name" />
-            <div class="pc-actions">
-              <el-button size="small" type="primary" circle @click.stop="addCart(p)"><el-icon><ShoppingCart /></el-icon></el-button>
-            </div>
-          </div>
-          <div class="pc-info">
-            <p class="pc-name">{{ p.name }}</p>
-            <p class="pc-price price-red">¥{{ p.price?.toFixed(2) }}
-              <span class="pc-original" v-if="p.originalPrice">¥{{ p.originalPrice?.toFixed(2) }}</span>
-            </p>
-            <p class="pc-meta">
-              <span>{{ p.brand || '品牌' }}</span>
-              <span class="pc-sold"><el-icon><Sell /></el-icon> {{ p.sales || 0 }}</span>
-            </p>
-          </div>
-        </div>
-      </div>
-      <el-empty v-else description="暂无匹配商品">
-        <el-button type="primary" @click="clearFilter">返回全部商品</el-button>
-      </el-empty>
-    </div>
-
-    <!-- 骨架屏（加载中） -->
-    <template v-if="!productsLoaded && !filterLabel">
-      <div class="section">
-        <div class="section-hd"><div class="skeleton-bar" style="width:150px;height:24px;"></div></div>
-        <div class="flash-grid">
-          <div v-for="i in 6" :key="'fsk'+i" class="skeleton-flash"></div>
-        </div>
-      </div>
-      <div class="section">
-        <div class="section-hd"><div class="skeleton-bar" style="width:120px;height:24px;"></div></div>
-        <div class="brand-grid">
-          <div v-for="i in 8" :key="'bsk'+i" class="skeleton-brand"></div>
-        </div>
-      </div>
-      <div class="section">
-        <div class="section-hd"><div class="skeleton-bar" style="width:120px;height:24px;"></div></div>
-        <div class="product-grid">
-          <div v-for="i in 8" :key="'psk'+i" class="skeleton-product"></div>
-        </div>
-      </div>
-    </template>
-
-    <!-- ===== 秒杀区 ===== -->
-    <div class="section flash-sale reveal-section" v-if="!filterLabel && productsLoaded">
-      <div class="section-hd">
-        <h3><el-icon><Timer /></el-icon> 限时秒杀</h3>
-        <div class="countdown">
-          <span class="cd-label">距结束</span>
-          <span v-for="(v,k) in countdown" :key="k" class="cd-num">{{ v }}<span v-if="k!=='ss'">:</span></span>
-        </div>
-        <a @click="$router.push('/seckill')">查看更多 <el-icon><ArrowRight /></el-icon></a>
-      </div>
-      <div class="flash-grid">
-        <div v-for="(p, idx) in hotProducts" :key="p.id" class="flash-card card-3d reveal-item"
-             :style="{ transitionDelay: idx*0.06+'s' }"
-             @mousemove="onCardTilt" @mouseleave="resetCardTilt"
-             @click="$router.push(`/product/${p.id}`)">
-          <img :src="p.mainImage || 'https://placehold.co/200x200/eee/999?text='+p.name" :alt="p.name" />
-          <p class="flash-name">{{ p.name }}</p>
-          <p class="price-red">¥{{ p.price?.toFixed(2) }}</p>
-          <p class="flash-old">¥{{ p.originalPrice?.toFixed(2) }}</p>
-          <div class="flash-progress"><div :style="{ width: Math.min((p.sales||0)/(p.stock||100)*100, 100)+'%' }"></div></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== 品牌精选 ===== -->
-    <div class="section brands reveal-section" v-if="!filterLabel && productsLoaded">
-      <div class="section-hd"><h3>品牌精选</h3></div>
-      <div class="brand-grid">
-        <div v-for="(b, idx) in brands" :key="b.name" class="brand-card reveal-item"
-             :style="{ transitionDelay: idx*0.05+'s' }"
-             @click="searchBrand(b.keyword)">
-          <div class="brand-avatar" :style="{ background: b.color }">{{ b.name.charAt(0) }}</div>
-          <span>{{ b.name }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== 新品推荐 ===== -->
-    <div class="section reveal-section" v-if="!filterLabel && productsLoaded">
-      <div class="section-hd"><h3>新品推荐</h3></div>
-      <div class="product-grid">
-        <div v-for="(p, idx) in newProducts" :key="p.id" class="product-card card-3d reveal-item"
-             :style="{ transitionDelay: idx*0.05+'s' }"
-             @mousemove="onCardTilt" @mouseleave="resetCardTilt"
-             @click="$router.push(`/product/${p.id}`)">
-          <div class="pc-img">
-            <img :src="p.mainImage || 'https://placehold.co/300x300/eee/999?text='+p.name" :alt="p.name" />
-            <span class="tag-new">NEW</span>
-            <div class="pc-actions">
-              <el-button size="small" type="primary" circle @click.stop="addCart(p)"><el-icon><ShoppingCart /></el-icon></el-button>
-            </div>
-          </div>
-          <div class="pc-info">
-            <p class="pc-name">{{ p.name }}</p>
-            <p class="pc-price price-red">¥{{ p.price?.toFixed(2) }}
-              <span class="pc-original" v-if="p.originalPrice">¥{{ p.originalPrice?.toFixed(2) }}</span>
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== 按分类分区 ===== -->
-    <template v-if="!filterLabel && productsLoaded">
-      <div class="section reveal-section" v-for="cate in topCategories" :key="'c'+cate.id">
-        <div class="section-hd">
-          <h3>{{ cate.name }}</h3>
-          <div class="section-tags">
-            <span v-for="s in cate.children" :key="s.id" @click="goCategory(s.id)" class="cate-tag">{{ s.name }}</span>
-          </div>
-          <a @click="goCategory(cate.id)">查看更多 <el-icon><ArrowRight /></el-icon></a>
+    <!-- 更多商品（分页展示） -->
+    <section class="products reveal" v-if="productsLoaded && displayProducts.length > 5">
+      <div class="container">
+        <div class="section-header">
+          <h2>更多好物</h2>
+          <span class="result-count">共 {{ displayProducts.length }} 件，已加载 {{ Math.min(currentProducts.length, displayProducts.length - 5) }} 件</span>
         </div>
         <div class="product-grid">
-          <div v-for="(p, idx) in getCateProducts(cate)" :key="p.id" class="product-card card-3d reveal-item"
-               :style="{ transitionDelay: idx*0.05+'s' }"
-               @mousemove="onCardTilt" @mouseleave="resetCardTilt"
+          <div v-for="p in currentProducts" :key="p.id"
+               class="product-card"
                @click="$router.push(`/product/${p.id}`)">
             <div class="pc-img">
-              <img :src="p.mainImage || 'https://placehold.co/300x300/eee/999?text='+p.name" :alt="p.name" />
-              <div class="pc-actions">
-                <el-button size="small" type="primary" circle @click.stop="addCart(p)"><el-icon><ShoppingCart /></el-icon></el-button>
+              <img v-if="p.mainImage" :src="p.mainImage" :alt="p.name" />
+              <div v-else class="pc-placeholder">{{ p.name }}</div>
+              <div class="pc-overlay">
+                <el-button size="small" type="primary" round @click.stop="addCart(p)">
+                  <el-icon><ShoppingCart /></el-icon>
+                </el-button>
               </div>
             </div>
             <div class="pc-info">
               <p class="pc-name">{{ p.name }}</p>
-              <p class="pc-price price-red">¥{{ p.price?.toFixed(2) }}</p>
+              <p class="pc-price price">¥{{ p.price?.toFixed(2) }}</p>
             </div>
           </div>
         </div>
-        <el-empty v-if="!getCateProducts(cate).length" description="暂无商品" :image-size="60" />
+        
+        <div class="load-more" v-if="hasMore">
+          <el-button type="primary" :loading="loadingMore" @click="loadMoreProducts">
+            {{ loadingMore ? '加载中...' : '加载更多' }}
+          </el-button>
+        </div>
       </div>
-    </template>
+    </section>
 
-    <div class="load-more" v-if="hasMore && !filterLabel && productsLoaded">
-      <el-button :loading="loadingMore" @click="loadPage">加载更多</el-button>
-    </div>
+    <!-- 第五屏：信任背书 -->
+    <section class="trust reveal">
+      <div class="container">
+        <div class="trust-grid">
+          <div class="trust-item">
+            <el-icon :size="32"><Goods /></el-icon>
+            <h4>品质保障</h4>
+            <p>正品直供 放心选购</p>
+          </div>
+          <div class="trust-item">
+            <el-icon :size="32"><Van /></el-icon>
+            <h4>极速配送</h4>
+            <p>全国包邮 闪电发货</p>
+          </div>
+          <div class="trust-item">
+            <el-icon :size="32"><RefreshRight /></el-icon>
+            <h4>无忧售后</h4>
+            <p>7天退换 省心保障</p>
+          </div>
+          <div class="trust-item">
+            <el-icon :size="32"><Service /></el-icon>
+            <h4>专属客服</h4>
+            <p>一对一服务 随时在线</p>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <Transition name="back-fade">
-      <div v-show="showBackTop" class="back-top" @click="scrollToTop"><el-icon :size="24"><Top /></el-icon></div>
+    <!-- 返回顶部 -->
+    <Transition name="fade">
+      <div v-show="showBackTop" class="back-top" @click="scrollToTop">
+        <el-icon :size="20"><Top /></el-icon>
+      </div>
     </Transition>
   </div>
 </template>
@@ -225,202 +220,214 @@ import { useRouter, useRoute } from 'vue-router'
 import { productApi, categoryApi, cartApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
-import { ArrowRight, ShoppingCart, Tickets, Timer, Top, Sell, Ticket } from '@element-plus/icons-vue'
+import { ShoppingCart, Top, ArrowRight, Goods, Van, RefreshRight, Service } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
+// 数据
 const allProducts = ref([])
 const topCategories = ref([])
-const hoverCate = ref(null)
-const activeCate = ref(null)
+const productsLoaded = ref(false)
 const bannerIdx = ref(0)
 const stopBanner = ref(false)
-const pageNum = ref(1)
+const showBackTop = ref(false)
 const loadingMore = ref(false)
 const hasMore = ref(true)
-const showBackTop = ref(false)
+const pageNum = ref(1)
+const filterLabel = ref('')
 const searchKeyword = ref('')
-const productsLoaded = ref(false)
-const categoriesLoaded = ref(false)
-const bannerRef = ref(null)
-const bannerParallax = ref({ x: 0, y: 0 })
+const heroRef = ref(null)
 
-// Intersection Observer for scroll reveal
-let observer = null
+// 分页
+const productsPerPage = 12 // 每页显示12个
+const currentProducts = ref([]) // 当前已加载的商品
 
-const brands = [
-  { name: 'Apple', keyword: 'Apple', color: '#333' },
-  { name: '华为', keyword: '华为', color: '#c41230' },
-  { name: '小米', keyword: '小米', color: '#ff6900' },
-  { name: '三星', keyword: 'Samsung', color: '#1428a0' },
-  { name: '海尔', keyword: '海尔', color: '#1a73e8' },
-  { name: '格力', keyword: '格力', color: '#0066cc' },
-  { name: 'Nike', keyword: 'Nike', color: '#000' },
-  { name: '戴森', keyword: '戴森', color: '#2c3e50' },
-]
+// 加载商品（初始只加载前5个给精选推荐）
 
+// 轮播
 const banners = [
-  { bg: 'linear-gradient(135deg, #e1251b, #ff6b6b)', title: '新品首发', sub: '最新数码产品 震撼上市', btn: '立即抢购', link: () => goCategory(1) },
-  { bg: 'linear-gradient(135deg, #1a73e8, #4fc3f7)', title: '家电焕新', sub: '格力空调 低至 ¥3299', btn: '去看看', link: () => goCategory(3) },
-  { bg: 'linear-gradient(135deg, #6c5ce7, #a29bfe)', title: '时尚穿搭', sub: '春夏新品 满199减50', btn: '立即选购', link: () => goCategory(2) },
+  { bg: 'linear-gradient(135deg, #1a1a1a 0%, #333 100%)', title: '新品首发', sub: '科技与美学的完美融合', link: () => router.push('/home') },
+  { bg: 'linear-gradient(135deg, #e8734a 0%, #d4623a 100%)', title: '限时特惠', sub: '精选好物 低至 5 折', link: () => router.push('/seckill') },
+  { bg: 'linear-gradient(135deg, #4a9e7a 0%, #3d8b6a 100%)', title: '品质生活', sub: '用心甄选 只为更好的你', link: () => router.push('/home') },
 ]
 
-const news = ['iPhone 15 限时优惠中', 'MacBook 新品热卖', '华为 Mate 60 现货', '格力空调 年中大促', '戴森吸尘器 直降500']
+const currentBanner = computed(() => banners[bannerIdx.value])
 
+// 倒计时
 const countdown = ref({ hh: '00', mm: '00', ss: '00' })
 let cdTimer = null, bannerTimer = null
 
-// 粒子背景
-const particleStyle = (i) => ({
-  left: (i * 5.7 + 3) % 100 + '%',
-  top: (i * 3.3 + 7) % 100 + '%',
-  animationDelay: (i * 0.7) + 's',
-  animationDuration: (8 + (i % 5) * 3) + 's',
-  width: (4 + (i % 3) * 3) + 'px',
-  height: (4 + (i % 3) * 3) + 'px',
-  opacity: 0.15 + (i % 5) * 0.05
-})
-
 const startCountdown = () => {
-  const end = new Date(); end.setHours(23, 59, 59)
+  const end = new Date()
+  end.setHours(23, 59, 59)
   const tick = () => {
     const diff = Math.max(0, Math.floor((end - Date.now()) / 1000))
     countdown.value = {
       hh: String(Math.floor(diff / 3600)).padStart(2, '0'),
       mm: String(Math.floor(diff % 3600 / 60)).padStart(2, '0'),
-      ss: String(diff % 60).padStart(2, '0'),
+      ss: String(diff % 60).padStart(2, '0')
     }
   }
-  tick(); cdTimer = setInterval(tick, 1000)
+  tick()
+  cdTimer = setInterval(tick, 1000)
 }
 
-// 3D 卡片倾斜
-const onCardTilt = (e) => {
-  const card = e.currentTarget
-  const rect = card.getBoundingClientRect()
-  const x = (e.clientX - rect.left) / rect.width - 0.5
-  const y = (e.clientY - rect.top) / rect.height - 0.5
-  card.style.transform = `perspective(600px) rotateY(${x * 12}deg) rotateX(${-y * 12}deg) translateY(-4px)`
-  card.style.boxShadow = `${x * 10}px ${y * 10}px 30px rgba(0,0,0,0.12)`
-}
-
-const resetCardTilt = (e) => {
-  const card = e.currentTarget
-  card.style.transform = 'perspective(600px) rotateY(0) rotateX(0) translateY(0)'
-  card.style.boxShadow = ''
-}
-
-// Banner 视差
-const onBannerMove = (e) => {
-  const rect = e.currentTarget.getBoundingClientRect()
-  bannerParallax.value = {
-    x: (e.clientX - rect.left) / rect.width - 0.5,
-    y: (e.clientY - rect.top) / rect.height - 0.5
-  }
-}
-
-// 分类递归
+// 分类
 const getCategoryTreeIds = (parentId) => {
   const ids = [parentId]
   const children = topCategories.value.flatMap(c => [c, ...(c.children||[])])
-  const findChildren = (pid) => {
-    children.filter(c => c.parentId === pid).forEach(c => { ids.push(c.id); findChildren(c.id) })
-  }
-  findChildren(parentId)
+  const find = (pid) => children.filter(c => c.parentId === pid).forEach(c => { ids.push(c.id); find(c.id) })
+  find(parentId)
   return ids
 }
 
-const filterLabel = ref('')
+const goCategory = (id) => router.push({ path: '/home', query: { category: id } })
+const clearFilter = () => router.push('/home')
 
+// 探索品类“查看全部”：清除筛选并滚动到商品列表
+const viewAllProducts = async () => {
+  if (route.query.category || route.query.keyword) {
+    await router.push('/home')
+  }
+  nextTick(() => {
+    const el = document.querySelector('.products') || document.querySelector('.featured')
+    if (el) el.scrollIntoView({ behavior: 'smooth' })
+  })
+}
+
+// 筛选
 const applyFilter = () => {
   const cid = route.query.category ? Number(route.query.category) : null
   const kw = route.query.keyword || ''
   searchKeyword.value = kw
-
   if (cid) {
-    activeCate.value = cid
     const allCats = topCategories.value.flatMap(c => [c, ...(c.children||[])])
     const cate = allCats.find(c => c.id === cid)
     filterLabel.value = cate ? cate.name : '商品筛选'
   } else if (kw) {
-    activeCate.value = null
-    filterLabel.value = `搜索："${kw}"`
+    filterLabel.value = `搜索"${kw}"`
   } else {
-    activeCate.value = null
     filterLabel.value = ''
   }
 }
 
 watch(() => [route.query.category, route.query.keyword], () => applyFilter())
 
+// 商品数据
 const displayProducts = computed(() => {
-  const cid = activeCate.value
+  const cid = route.query.category ? Number(route.query.category) : null
   const kw = searchKeyword.value
   let list = allProducts.value
-
   if (cid) {
     const ids = getCategoryTreeIds(cid)
     list = list.filter(p => ids.includes(p.categoryId))
   }
   if (kw) {
     const lower = kw.toLowerCase()
-    list = list.filter(p =>
-      (p.name && p.name.toLowerCase().includes(lower)) ||
-      (p.brand && p.brand.toLowerCase().includes(lower))
-    )
+    list = list.filter(p => (p.name && p.name.toLowerCase().includes(lower)) || (p.brand && p.brand.toLowerCase().includes(lower)))
   }
   return list
 })
 
-const hotProducts = computed(() => allProducts.value.filter(p => p.status===1).sort((a,b)=>(b.sales||0)-(a.sales||0)).slice(0, 6))
-const newProducts = computed(() => [...allProducts.value].sort((a,b)=>new Date(b.createTime||0)-new Date(a.createTime||0)).slice(0, 8))
+const hotProducts = computed(() => 
+  allProducts.value.filter(p => p.status === 1).sort((a, b) => (b.sales || 0) - (a.sales || 0))
+)
 
-const getCateProducts = (cate) => {
-  const ids = getCategoryTreeIds(cate.id)
-  return allProducts.value.filter(p => ids.includes(p.categoryId)).slice(0, 6)
-}
-
-const goCategory = (id) => { hoverCate.value = null; if (id) router.push({ path: '/home', query: { category: id } }) }
-const searchBrand = (kw) => router.push({ path: '/home', query: { keyword: kw } })
-const clearFilter = () => router.push('/home')
-
+// 加载
 const loadAllProducts = async () => {
-  try { const res = await productApi.getList(); allProducts.value = res.data || [] }
-  catch (e) { /* ignore */ }
-  finally { productsLoaded.value = true }
+  try { 
+    console.log('开始加载商品...')
+    const res = await productApi.getList()
+    allProducts.value = res.data || []
+    console.log('加载成功，商品数量:', allProducts.value.length)
+    
+    // 初始只显示前5个商品（给精选推荐）
+    // currentProducts 初始为空，点击“加载更多”后才显示
+  }
+  catch (e) { 
+    console.error('加载商品失败:', e)
+  }
+  finally { 
+    productsLoaded.value = true
+    console.log('productsLoaded设为true')
+    // 数据加载完成后，强制显示所有区块
+    nextTick(() => {
+      setTimeout(() => {
+        document.querySelectorAll('.reveal:not(.revealed)').forEach(el => {
+          if (observer) observer.observe(el)
+        })
+        setTimeout(() => {
+          document.querySelectorAll('.reveal:not(.revealed)').forEach(el => {
+            const rect = el.getBoundingClientRect()
+            if (rect.top < window.innerHeight && rect.bottom > 0) {
+              el.classList.add('revealed')
+            }
+          })
+        }, 300)
+        console.log('重新观察元素完成')
+      }, 200)
+    })
+  }
 }
+
+// 加载更多商品
+const loadMoreProducts = async () => {
+  if (loadingMore.value) return
+  
+  loadingMore.value = true
+  
+  // 计算本次要加载的商品（从索引5开始，因为前5个在精选推荐区）
+  const startIndex = 5 + (pageNum.value - 1) * productsPerPage
+  const endIndex = startIndex + productsPerPage
+  const newProducts = displayProducts.value.slice(startIndex, endIndex)
+  
+  // 模拟加载延迟
+  await new Promise(resolve => setTimeout(resolve, 300))
+  
+  currentProducts.value = [...currentProducts.value, ...newProducts]
+  
+  // 检查是否还有更多
+  if (endIndex >= displayProducts.value.length) {
+    hasMore.value = false
+  } else {
+    pageNum.value++
+  }
+  
+  loadingMore.value = false
+}
+
 const loadCategories = async () => {
   try {
     const res = await categoryApi.getList()
     const all = res.data || []
-    topCategories.value = all.filter(c => c.parentId === 0).map(c => ({ ...c, children: all.filter(s => s.parentId === c.id) }))
+    const colors = ['#e8734a', '#4a9e7a', '#5a8fbf', '#8b6a4a', '#9e4a7a', '#6a4a9e', '#4a7a9e', '#9e8a4a']
+    topCategories.value = all.filter(c => c.parentId === 0).map((c, i) => ({
+      ...c,
+      children: all.filter(s => s.parentId === c.id),
+      color: colors[i % colors.length]
+    }))
     applyFilter()
-  } catch (e) { /* ignore */ }
-  finally { categoriesLoaded.value = true }
+  } catch (e) { console.error('加载分类失败:', e) }
 }
+
 const loadPage = async () => {
-  loadingMore.value = true
-  try {
-    const res = await productApi.getPage(pageNum.value + 1, 10)
-    const data = res.data?.list || []
-    if (data.length) { allProducts.value.push(...data); pageNum.value++ }
-    else hasMore.value = false
-  } catch { hasMore.value = false }
-  finally { loadingMore.value = false }
+  // 旧的加载函数，已被 loadMoreProducts 替代
 }
 
 const addCart = async (product) => {
   if (!userStore.token) { ElMessage.warning('请先登录'); router.push('/login'); return }
-  try { await cartApi.add(userStore.userInfo.id, product.id, 1); ElMessage.success('已加入购物车') }
+  try { await cartApi.add(product.id, 1); ElMessage.success('已加入购物车') }
   catch (e) { ElMessage.error('加入失败') }
 }
 
+// 滚动
 const handleScroll = () => { showBackTop.value = window.scrollY > 500 }
 const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 
-// Intersection Observer：滚动触发动画
+// IntersectionObserver
+let observer = null
 const setupObserver = () => {
   observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -429,16 +436,8 @@ const setupObserver = () => {
         observer.unobserve(entry.target)
       }
     })
-  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' })
-
-  nextTick(() => {
-    document.querySelectorAll('.reveal-item, .reveal-section').forEach(el => {
-      observer.observe(el)
-    })
-  })
+  }, { threshold: 0.1 })
 }
-
-bannerTimer = setInterval(() => { if (!stopBanner.value) bannerIdx.value = (bannerIdx.value + 1) % banners.length }, 4000)
 
 onMounted(() => {
   startCountdown()
@@ -446,155 +445,761 @@ onMounted(() => {
   loadCategories()
   window.addEventListener('scroll', handleScroll)
   setupObserver()
+  
+  bannerTimer = setInterval(() => { if (!stopBanner.value) bannerIdx.value = (bannerIdx.value + 1) % banners.length }, 5000)
 })
+
 onUnmounted(() => {
-  clearInterval(cdTimer); clearInterval(bannerTimer)
+  clearInterval(cdTimer)
+  clearInterval(bannerTimer)
   window.removeEventListener('scroll', handleScroll)
   if (observer) observer.disconnect()
 })
 </script>
 
 <style scoped>
-.home { background: var(--jd-bg); padding-bottom: 40px; position: relative; overflow-x: hidden; }
-
-/* ---- 粒子背景 ---- */
-.particles-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
-.particle {
-  position: absolute; background: var(--jd-red); border-radius: 50%;
-  animation: particleFloat linear infinite;
-}
-@keyframes particleFloat {
-  0% { transform: translateY(0) translateX(0) scale(1); opacity: 0; }
-  20% { opacity: 0.3; }
-  80% { opacity: 0.3; }
-  100% { transform: translateY(-100vh) translateX(30px) scale(0); opacity: 0; }
+.home {
+  background: var(--color-bg);
+  min-height: 100vh;
 }
 
-/* ---- hero ---- */
-.hero-section { background: #fff; position: relative; z-index: 1; }
-.hero-inner { max-width: 1200px; margin: 0 auto; display: flex; height: 480px; }
-.hero-cates { width: 220px; background: #fafafa; padding: 12px 0; }
-.hero-cate-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; cursor: pointer; font-size: 14px; position: relative; transition: all .2s; }
-.hero-cate-item:hover, .hero-cate-item.active { color: var(--jd-red); background: #fff; font-weight: 600; }
-.hero-subpop { position: absolute; left: 100%; top: 0; background: #fff; min-width: 200px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); z-index: 100; padding: 8px 0; border-radius: 4px; }
-.hero-subpop a { display: block; padding: 8px 20px; font-size: 13px; transition: all .15s; }
-.hero-subpop a:hover { color: var(--jd-red); background: #fff5f5; padding-left: 24px; }
-.sub-fade-enter-active { transition: opacity .2s,transform .2s; }
-.sub-fade-leave-active { transition: opacity .1s; }
-.sub-fade-enter-from { opacity: 0; transform: translateX(-8px); }
-
-.hero-banner { flex: 1; overflow: hidden; position: relative; cursor: pointer; }
-.banner-track { display: flex; transition: transform .6s cubic-bezier(.4,0,.2,1); height: 100%; }
-.banner-slide { min-width: 100%; display: flex; align-items: center; padding: 60px; transition: transform .1s ease-out; }
-.banner-text h2 { font-size: 42px; color: #fff; margin-bottom: 12px; animation: slideUp .6s both; }
-.banner-text p { font-size: 20px; color: rgba(255,255,255,.9); margin-bottom: 24px; animation: slideUp .6s .15s both; }
-.banner-btn { display: inline-block; padding: 10px 30px; background: #fff; color: var(--jd-red); border-radius: 20px; font-size: 15px; font-weight: 600; animation: slideUp .6s .3s both; transition: transform .2s; }
-.banner-btn:hover { transform: scale(1.05); }
-.banner-dots { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
-.banner-dots span { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.5); cursor: pointer; transition: all .3s; }
-.banner-dots span.active { width: 24px; border-radius: 5px; background: #fff; }
-@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-
-.hero-news { width: 200px; padding: 12px; }
-.news-header { display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
-.news-header a { font-size: 12px; color: var(--jd-text-lighter); }
-.news-item { display: block; font-size: 12px; color: var(--jd-text-light); padding: 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: newsIn .5s both; }
-.news-item:hover { color: var(--jd-red); }
-.news-promo { display: flex; gap: 8px; margin-top: 16px; }
-.promo-box { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 0; background: #f8f8f8; border-radius: 4px; cursor: pointer; color: var(--jd-text-light); transition: all .2s; }
-.promo-box:hover { color: var(--jd-red); transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.06); }
-@keyframes newsIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
-
-/* ---- sections ---- */
-.section { max-width: 1200px; margin: 20px auto 0; background: #fff; border-radius: 8px; padding: 20px; position: relative; z-index: 1; }
-.section-hd { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
-.section-hd h3 { font-size: 20px; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-.section-hd a { font-size: 13px; color: var(--jd-text-lighter); margin-left: auto; cursor: pointer; white-space: nowrap; }
-.section-hd a:hover { color: var(--jd-red); }
-.result-count { font-size: 13px; color: var(--jd-text-lighter); }
-.section-tags { display: flex; gap: 8px; }
-.cate-tag { font-size: 13px; padding: 3px 12px; background: #f5f5f5; border-radius: 12px; cursor: pointer; transition: all .2s; }
-.cate-tag:hover { background: var(--jd-red); color: #fff; }
-
-.countdown { display: flex; align-items: center; gap: 4px; }
-.cd-label { font-size: 12px; color: #999; margin-right: 4px; }
-.cd-num { background: #333; color: #fff; padding: 2px 6px; border-radius: 3px; font-size: 14px; font-weight: 600; }
-.cd-num span { margin: 0 2px; }
-
-.flash-sale { background: linear-gradient(135deg, #fff5f5, #fff); animation: flashPulse 3s ease-in-out infinite; }
-@keyframes flashPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(225, 37, 27, 0); }
-  50% { box-shadow: 0 0 0 6px rgba(225, 37, 27, 0.06); }
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-md);
 }
-.flash-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
-.flash-card { text-align: center; padding: 12px; background: #fafafa; border-radius: 8px; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-.flash-card:hover { background: #fff; transform: translateY(-4px); box-shadow: 0 8px 24px rgba(255, 77, 79, 0.15); }
-.flash-card img { width: 100%; height: 140px; object-fit: contain; margin-bottom: 8px; }
-.flash-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.flash-old { font-size: 12px; color: #999; text-decoration: line-through; }
-.flash-progress { height: 4px; background: #ffe0e0; border-radius: 2px; margin-top: 8px; overflow: hidden; }
-.flash-progress div { height: 100%; background: var(--jd-red); border-radius: 2px; transition: width 1s; }
 
-.brand-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 16px; }
-.brand-card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px; background: #fafafa; border-radius: 8px; cursor: pointer; transition: all 0.3s; }
-.brand-card:hover { background: #fff; transform: translateY(-4px); box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
-.brand-avatar { width: 50px; height: 50px; border-radius: 50%; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; transition: transform .3s; }
-.brand-card:hover .brand-avatar { transform: rotate(-10deg) scale(1.1); }
-
-.product-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-.product-card { background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid #f0f0f0; position: relative; cursor: pointer; transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1); }
-.pc-img { width: 100%; height: 200px; display: flex; align-items: center; justify-content: center; background: #fafafa; position: relative; overflow: hidden; }
-.pc-img img { width: 100%; height: 100%; object-fit: contain; transition: transform .4s; }
-.product-card:hover .pc-img img { transform: scale(1.08); }
-.pc-actions { position: absolute; bottom: 8px; right: 8px; opacity: 0; transform: translateY(8px); transition: all .3s; }
-.product-card:hover .pc-actions { opacity: 1; transform: translateY(0); }
-.tag-new { position: absolute; top: 8px; left: 8px; background: var(--jd-red); color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; }
-.pc-info { padding: 12px; }
-.pc-name { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 6px; }
-.pc-price { font-size: 18px; display: flex; align-items: baseline; gap: 8px; }
-.pc-original { font-size: 12px; color: #999; text-decoration: line-through; font-weight: 400; }
-.pc-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #999; margin-top: 6px; }
-.pc-sold { display: flex; align-items: center; gap: 2px; }
-
-/* ---- 滚动触发动画 ---- */
-.reveal-item {
+/* 滚动淡入 */
+.reveal {
   opacity: 0;
-  transform: translateY(30px);
-  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(40px);
+  transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.reveal-item.revealed {
+
+.reveal.revealed {
   opacity: 1;
   transform: translateY(0);
 }
-.reveal-section .reveal-item:nth-child(1) { transition-delay: 0s; }
-.reveal-section .reveal-item:nth-child(2) { transition-delay: 0.06s; }
-.reveal-section .reveal-item:nth-child(3) { transition-delay: 0.12s; }
-.reveal-section .reveal-item:nth-child(4) { transition-delay: 0.18s; }
-.reveal-section .reveal-item:nth-child(5) { transition-delay: 0.24s; }
-.reveal-section .reveal-item:nth-child(6) { transition-delay: 0.30s; }
-.reveal-section .reveal-item:nth-child(7) { transition-delay: 0.36s; }
-.reveal-section .reveal-item:nth-child(8) { transition-delay: 0.42s; }
 
-/* ---- 骨架屏 ---- */
-.skeleton-cate, .skeleton-bar, .skeleton-flash, .skeleton-brand, .skeleton-product {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: skeletonShimmer 1.5s ease-in-out infinite;
+/* 第一屏：Hero */
+.hero {
+  position: relative;
+  height: 50vh;
+  min-height: 360px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  transition: opacity 0.8s ease;
+}
+
+.hero-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--spacing-xl);
+}
+
+.hero-title {
+  font-size: clamp(40px, 6vw, 72px);
+  font-weight: 700;
+  color: var(--color-white);
+  margin-bottom: var(--spacing-md);
+  letter-spacing: -1px;
+  line-height: 1.1;
+}
+
+.hero-subtitle {
+  font-size: clamp(16px, 2.5vw, 24px);
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: var(--spacing-lg);
+  font-weight: 400;
+}
+
+.hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 32px;
+  background: var(--color-white);
+  color: var(--color-primary);
+  border: none;
+  border-radius: 30px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.hero-cta:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.hero-nav {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+}
+
+.hero-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.hero-dot.active {
+  width: 32px;
   border-radius: 4px;
+  background: var(--color-white);
 }
-@keyframes skeletonShimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+
+/* 第二屏：分类 */
+.categories {
+  padding: var(--spacing-xl) 0;
+  background: var(--color-white);
 }
-.skeleton-cate { height: 36px; margin: 4px 12px; }
-.skeleton-flash { height: 220px; border-radius: 8px; }
-.skeleton-brand { height: 80px; border-radius: 8px; }
-.skeleton-product { height: 260px; border-radius: 8px; }
 
-.load-more { text-align: center; padding: 30px; position: relative; z-index: 1; }
+.section-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin-bottom: var(--spacing-lg);
+  text-align: center;
+}
 
-.back-top { position: fixed; bottom: 60px; right: 30px; width: 44px; height: 44px; background: var(--jd-red); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(225,37,27,.4); z-index: 999; transition: transform .2s; }
-.back-top:hover { transform: scale(1.1); }
-.back-fade-enter-active, .back-fade-leave-active { transition: opacity .3s; }
-.back-fade-enter-from, .back-fade-leave-to { opacity: 0; }
+.category-scroll {
+  display: flex;
+  gap: var(--spacing-md);
+  overflow-x: auto;
+  padding-bottom: var(--spacing-sm);
+  scrollbar-width: none;
+}
+
+.category-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.category-card {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  cursor: pointer;
+  transition: all 0.3s;
+  min-width: 120px;
+}
+
+.category-card:hover {
+  transform: translateY(-4px);
+}
+
+.category-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-white);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.category-icon-sm {
+  width: 48px;
+  height: 48px;
+  font-size: 18px;
+  opacity: 0.85;
+}
+
+.category-name {
+  font-size: 14px;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+/* 第三屏：秒杀 */
+.seckill {
+  padding: var(--spacing-xl) 0;
+  background: linear-gradient(180deg, var(--color-white) 0%, var(--color-bg) 100%);
+}
+
+.seckill-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.seckill-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.seckill-icon {
+  font-size: 32px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.seckill-header h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.countdown {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cd-label {
+  font-size: 14px;
+  color: var(--color-text-lighter);
+  margin-right: 8px;
+}
+
+.cd-digit {
+  background: var(--color-primary);
+  color: var(--color-white);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 24px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  min-width: 44px;
+  text-align: center;
+  animation: digitBounce 0.3s ease;
+}
+
+@keyframes digitBounce {
+  0% { transform: scale(0.9); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.cd-sep {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.seckill-scroll {
+  display: flex;
+  gap: var(--spacing-md);
+  overflow-x: auto;
+  padding-bottom: var(--spacing-sm);
+  min-height: 280px;
+}
+
+.seckill-card {
+  flex-shrink: 0;
+  width: 240px;
+  background: var(--color-white);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: var(--shadow-sm);
+}
+
+.seckill-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-hover);
+}
+
+.sc-img {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  background: var(--color-bg);
+  overflow: hidden;
+  display: block;
+}
+
+.sc-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 0.4s;
+}
+
+.seckill-card:hover .sc-img img {
+  transform: scale(1.08);
+}
+
+.sc-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-lighter);
+  background: linear-gradient(135deg, #f5f5f5, #e8e8e8);
+  min-height: 200px;
+  padding: 12px;
+  text-align: center;
+  word-break: break-word;
+}
+
+.sc-tag {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: var(--color-accent);
+  color: var(--color-white);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sc-info {
+  padding: var(--spacing-sm);
+}
+
+.sc-name {
+  font-size: 14px;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 8px;
+}
+
+.sc-price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sc-now {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.sc-was {
+  font-size: 12px;
+  color: var(--color-text-lighter);
+  text-decoration: line-through;
+}
+
+.sc-info .el-button {
+  width: 100%;
+}
+
+.seckill-more {
+  text-align: center;
+  margin-top: var(--spacing-md);
+  color: var(--color-text-lighter);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: color 0.2s;
+}
+
+.seckill-more:hover {
+  color: var(--color-accent);
+}
+
+/* 第四屏：精选推荐 */
+.featured {
+  padding: var(--spacing-xl) 0;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.section-header h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.section-header a {
+  font-size: 14px;
+  color: var(--color-text-lighter);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.section-header a:hover {
+  color: var(--color-accent);
+}
+
+.featured-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+}
+
+.featured-main {
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: var(--shadow-sm);
+}
+
+.featured-main:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-hover);
+}
+
+.fm-img {
+  width: 100%;
+  height: 320px;
+  background: var(--color-bg);
+  overflow: hidden;
+  display: block;
+}
+
+.fm-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 0.4s;
+}
+
+.featured-main:hover .fm-img img {
+  transform: scale(1.05);
+}
+
+.fm-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-lighter);
+  background: linear-gradient(135deg, #f5f5f5, #e8e8e8);
+  min-height: 320px;
+  padding: 16px;
+  text-align: center;
+  word-break: break-word;
+}
+
+.fm-info {
+  padding: var(--spacing-md);
+}
+
+.fm-info h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--spacing-sm);
+}
+
+.fm-price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: var(--spacing-sm);
+}
+
+.fm-original {
+  font-size: 14px;
+  color: var(--color-text-lighter);
+  text-decoration: line-through;
+}
+
+.featured-sub {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+}
+
+.fs-card {
+  background: var(--color-white);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: var(--shadow-sm);
+}
+
+.fs-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover);
+}
+
+.fs-img {
+  width: 100%;
+  height: 160px;
+  background: var(--color-bg);
+  overflow: hidden;
+  display: block;
+}
+
+.fs-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 0.4s;
+}
+
+.fs-card:hover .fs-img img {
+  transform: scale(1.08);
+}
+
+.fs-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-lighter);
+  background: linear-gradient(135deg, #f5f5f5, #e8e8e8);
+  min-height: 160px;
+  padding: 8px;
+  text-align: center;
+  word-break: break-word;
+}
+
+.fs-info {
+  padding: var(--spacing-sm);
+}
+
+.fs-name {
+  font-size: 13px;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+
+.fs-price {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* 更多商品 */
+.products {
+  padding: var(--spacing-xl) 0;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-md);
+}
+
+.product-card {
+  background: var(--color-white);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: var(--shadow-sm);
+}
+
+.product-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-hover);
+}
+
+.pc-img {
+  width: 100%;
+  height: 240px;
+  background: var(--color-bg);
+  position: relative;
+  overflow: hidden;
+  display: block;
+}
+
+.pc-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 0.4s;
+}
+
+.product-card:hover .pc-img img {
+  transform: scale(1.06);
+}
+
+.pc-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-lighter);
+  background: linear-gradient(135deg, #f5f5f5, #e8e8e8);
+  min-height: 240px;
+  padding: 12px;
+  text-align: center;
+  word-break: break-word;
+}
+
+.pc-overlay {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  opacity: 0;
+  transition: all 0.3s;
+}
+
+.product-card:hover .pc-overlay {
+  opacity: 1;
+}
+
+.pc-info {
+  padding: var(--spacing-sm);
+}
+
+.pc-name {
+  font-size: 14px;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+
+.pc-price {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.load-more {
+  text-align: center;
+  padding: var(--spacing-lg) 0;
+}
+
+/* 第五屏：信任背书 */
+.trust {
+  padding: var(--spacing-xl) 0;
+  background: var(--color-white);
+  margin-top: var(--spacing-xl);
+}
+
+.trust-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-lg);
+}
+
+.trust-item {
+  text-align: center;
+  color: var(--color-text);
+}
+
+.trust-item .el-icon {
+  color: var(--color-accent);
+  margin-bottom: var(--spacing-sm);
+}
+
+.trust-item h4 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.trust-item p {
+  font-size: 13px;
+  color: var(--color-text-lighter);
+}
+
+/* 返回顶部 */
+.back-top {
+  position: fixed;
+  bottom: 40px;
+  right: 40px;
+  width: 44px;
+  height: 44px;
+  background: var(--color-white);
+  color: var(--color-text);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: all 0.3s;
+}
+
+.back-top:hover {
+  transform: scale(1.1);
+  box-shadow: var(--shadow-lg);
+}
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* 响应式 */
+@media (max-width: 968px) {
+  .featured-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .featured-sub {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .product-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .trust-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .hero {
+    height: 70vh;
+    min-height: 500px;
+  }
+  
+  .product-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .trust-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+  }
+}
 </style>

@@ -17,6 +17,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
+    @Autowired
+    private JwtInterceptor jwtInterceptor;
 
     @Bean
     @LoadBalanced  // 开启负载均衡，通过服务名调用
@@ -26,11 +28,22 @@ public class WebConfig implements WebMvcConfigurer {
 
     /**
      * 配置拦截器
-     * 注意：网关已统一处理 JWT 验签，下游服务不再需要 Token 拦截器
+     * 当前架构：Vite 代理直连 mall-Project（未经网关），由 JWT 拦截器自行验签
      */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        // JWT 拦截器已移除，由网关统一验签并传递 X-User-Id
+        registry.addInterceptor(jwtInterceptor)
+                .addPathPatterns("/**")
+                .excludePathPatterns(
+                        "/uploads/**",
+                        // Swagger 文档路径
+                        "/doc.html",
+                        "/swagger-ui.html",
+                        "/swagger-ui/**",
+                        "/v3/api-docs/**",
+                        "/webjars/**",
+                        "/swagger-resources/**"
+                );
     }
 
     /**

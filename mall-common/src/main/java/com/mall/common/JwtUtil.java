@@ -12,7 +12,7 @@ import java.util.Date;
 
 @RefreshScope  // 配置变更时自动刷新
 @Service
-//todo token创建与识别
+// token创建与识别
 public class JwtUtil {
 //
 
@@ -26,10 +26,11 @@ public class JwtUtil {
     /**
      * 生成 Token(生成包含用户ID和用户名的Token，有效期24小时)
      */
-    public static String generateToken(Long userId, String username) {
+    public static String generateToken(Long userId, String username, String role) {
         return Jwts.builder()
                 .setSubject(String.valueOf(userId))
                 .claim("username", username)
+                .claim("role", role)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION))
                 .signWith(getSecretKey(), SignatureAlgorithm.HS256)

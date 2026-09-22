@@ -1,7 +1,10 @@
 package com.mall.service;
 
+import com.mall.common.Result;
+import com.mall.entity.Category;
 import com.mall.entity.Product;
-import com.mall.mapper.ProductMapper;
+import com.mall.feign.CategoryServiceFeignClient;
+import com.mall.feign.ProductServiceFeignClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,10 +33,10 @@ public class CacheWarmupService implements CommandLineRunner {
     private static final Logger logger = LoggerFactory.getLogger(CacheWarmupService.class);
 
     @Autowired
-    private ProductMapper productMapper;
+    private ProductServiceFeignClient productService;
 
     @Autowired
-    private com.mall.mapper.CategoryMapper categoryMapper;
+    private CategoryServiceFeignClient categoryService;
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
@@ -68,7 +71,8 @@ public class CacheWarmupService implements CommandLineRunner {
         
         try {
             // 查询所有上架商品
-            List<Product> products = productMapper.selectList(null);
+            Result<List<Product>> result = productService.findAll();
+            List<Product> products = result != null ? result.getData() : null;
             
             if (products == null || products.isEmpty()) {
                 logger.warn("没有商品数据需要预热");
@@ -100,7 +104,8 @@ public class CacheWarmupService implements CommandLineRunner {
         
         try {
             // 查询所有分类
-            List<com.mall.entity.Category> categories = categoryMapper.selectList(null);
+            Result<List<Category>> result = categoryService.listCategories();
+            List<Category> categories = result != null ? result.getData() : null;
             
             if (categories == null || categories.isEmpty()) {
                 logger.warn("没有分类数据需要预热");

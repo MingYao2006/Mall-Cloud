@@ -22,6 +22,30 @@ public class CategoryService {
     private RedisTemplate redisTemplate;
 
     /**
+     * 获取所有分类（管理端用，包含禁用分类）
+     */
+    public List<Category> getAllCategoriesForAdmin() {
+        String cacheKey = "categories:admin:all";
+
+        // 先从缓存获取
+        List<Category> categories = (List<Category>) redisTemplate.opsForValue().get(cacheKey);
+        if (categories != null) {
+            return categories;
+        }
+
+        // 从数据库查询（不按 status 过滤，包含禁用分类）
+        LambdaQueryWrapper<Category> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.orderByAsc(Category::getSort);
+
+        categories = categoryMapper.selectList(queryWrapper);
+
+        // 缓存结果
+        redisTemplate.opsForValue().set(cacheKey, categories, 1, TimeUnit.HOURS);
+
+        return categories;
+    }
+
+    /**
      * 获取所有分类
      */
     public List<Category> getAllCategories() {
@@ -92,7 +116,7 @@ public class CategoryService {
         categoryMapper.insert(category);
 
         // 清除缓存
-        redisTemplate.delete("categories:all");
+        clearCategoryCache();
     }
 
     /**
@@ -102,7 +126,7 @@ public class CategoryService {
         categoryMapper.updateById(category);
 
         // 清除缓存
-        redisTemplate.delete("categories:all");
+        clearCategoryCache();
     }
 
     /**
@@ -128,7 +152,7 @@ public class CategoryService {
         }
 
         // 清除缓存
-        redisTemplate.delete("categories:all");
+        clearCategoryCache();
     }
 
     /**
@@ -165,6 +189,14 @@ public class CategoryService {
         categoryMapper.updateById(category);
 
         // 清除缓存
+        clearCategoryCache();
+    }
+
+    /**
+     * 清除分类相关缓存（包含前端和管理端）
+     */
+    private void clearCategoryCache() {
         redisTemplate.delete("categories:all");
+        redisTemplate.delete("categories:admin:all");
     }
 }

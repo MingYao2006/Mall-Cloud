@@ -2,7 +2,7 @@ package com.mall.common;
 
 import lombok.Data;
 
-//todo 设置统一结果类
+// 设置统一结果类
 
 //
 @Data

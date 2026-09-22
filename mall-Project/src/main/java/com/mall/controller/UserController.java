@@ -2,110 +2,118 @@ package com.mall.controller;
 
 import com.mall.common.Result;
 import com.mall.entity.User;
-import com.mall.service.UserService;
+import com.mall.feign.UserServiceFeignClient;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
+/**
+ * 用户聚合入口
+ * <p>
+ * 整合架构：本控制器不再实现任何用户业务逻辑，
+ * 全部通过 Feign 代理转发到 mall-user-service 微服务。
+ */
+@Tag(name = "用户服务", description = "用户相关接口（聚合服务代理）")
 @RestController
 @RequestMapping("/users")
 public class UserController {
-    @Autowired
-    private UserService userService;
+
+    private final UserServiceFeignClient userServiceFeignClient;
+
+    public UserController(UserServiceFeignClient userServiceFeignClient) {
+        this.userServiceFeignClient = userServiceFeignClient;
+    }
 
     /**
-     * 测试接口
+     * 测试接口（转发到用户微服务）
      */
+    @Operation(summary = "测试接口")
     @GetMapping("/test")
     public Result<String> test() {
-        return Result.success("接口正常工作");
+        return userServiceFeignClient.test();
     }
 
     /**
-     * 用户注册
+     * 用户注册（转发到用户微服务）
      */
+    @Operation(summary = "用户注册")
     @PostMapping("/register")
     public Result<Object> register(@RequestBody User user) {
-        return userService.register(user);
+        return userServiceFeignClient.register(user);
     }
 
     /**
-     * 用户登录
+     * 用户登录（转发到用户微服务）
      */
+    @Operation(summary = "用户登录")
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@RequestBody Map<String, String> params) {
-        String username = params.get("username");
-        String password = params.get("password");
-        return userService.login(username, password);
+        return userServiceFeignClient.login(params);
     }
 
     /**
-     * 用户注销（退出登录）
+     * 用户注销（退出登录，转发到用户微服务）
      */
+    @Operation(summary = "用户注销")
     @PostMapping("/logout")
     public Result<Object> logout() {
-        // JWT Token 无法在服务端销毁，客户端删除 Token 即可
-        // 这里只是返回成功响应，实际注销由前端删除 Token 完成
-        return Result.success("退出登录成功");
+        return userServiceFeignClient.logout();
     }
 
     /**
-     * 获取当前用户信息
+     * 获取当前用户信息（转发到用户微服务）
      */
+    @Operation(summary = "获取当前用户信息")
     @GetMapping("/info")
     public Result<User> getUserInfo(HttpServletRequest request) {
-        // 从拦截器设置的请求属性中获取用户 ID
-        Long userId = (Long) request.getAttribute("userId");
-        return userService.findById(userId);
+        return userServiceFeignClient.getUserInfo(resolveToken(request));
     }
 
     /**
-     * 更新用户信息
+     * 更新用户信息（转发到用户微服务）
      */
+    @Operation(summary = "更新用户信息")
     @PutMapping("/info")
     public Result<Object> updateUserInfo(@RequestBody User user, HttpServletRequest request) {
-        // 从拦截器设置的请求属性中获取用户 ID
-        Long userId = (Long) request.getAttribute("userId");
-        user.setId(userId);
-        return userService.updateUserInfo(user);
+        return userServiceFeignClient.updateUserInfo(user, resolveToken(request));
     }
 
     /**
-     * 修改密码
+     * 修改密码（转发到用户微服务）
      */
+    @Operation(summary = "修改密码")
     @PutMapping("/password")
     public Result<Object> updatePassword(@RequestBody Map<String, String> params, HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
-        String oldPassword = params.get("oldPassword");
-        String newPassword = params.get("newPassword");
-        return userService.updatePassword(userId, oldPassword, newPassword);
+        return userServiceFeignClient.updatePassword(params, resolveToken(request));
     }
 
     /**
-     * 上传头像
+     * 上传头像（转发到用户微服务）
      */
+    @Operation(summary = "上传头像")
     @PostMapping("/avatar")
     public Result<String> uploadAvatar(@RequestParam("file") MultipartFile file, HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
-        return userService.uploadAvatar(userId, file);
+        return userServiceFeignClient.uploadAvatar(file, resolveToken(request));
     }
 
     /**
-     * 发送验证码
+     * 发送验证码（转发到用户微服务）
      */
+    @Operation(summary = "发送验证码")
     @PostMapping("/code")
     public Result<String> sendCode(@RequestParam String phone) {
-        return userService.sendCode(phone);
+        return userServiceFeignClient.sendCode(phone);
     }
 
 
     /**
      * 健康检查接口（用于负载均衡器检测）
      */
+    @Operation(summary = "健康检查接口")
     @GetMapping("/health")
     public Result<Map<String, Object>> health() {
         Map<String, Object> healthInfo = new java.util.HashMap<>();
@@ -118,11 +126,32 @@ public class UserController {
     }
 
     /**
-     * 验证码登录
+     * 验证码登录（转发到用户微服务）
      */
+    @Operation(summary = "验证码登录")
     @PostMapping("/login/code")
     public Result<Map<String, Object>> loginByCode(@RequestParam String phone, @RequestParam String code) {
-        return userService.loginByCode(phone, code);
+        return userServiceFeignClient.loginByCode(phone, code);
+    }
+
+    /**
+     * 微信小程序登录（转发到用户微服务）
+     * <p>
+     * 请求体：{ code, nickname, avatarUrl }
+     * 免登录接口，已在网关与聚合层白名单中放行。
+     */
+    @Operation(summary = "微信小程序登录")
+    @PostMapping("/wx-login")
+    public Result<Map<String, Object>> wxLogin(@RequestBody Map<String, String> params) {
+        return userServiceFeignClient.wxLogin(params);
+    }
+
+    /**
+     * 从请求中提取 Authorization 头，透传给用户微服务做身份解析
+     */
+    private String resolveToken(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        return authHeader != null ? authHeader : "";
     }
 
 }

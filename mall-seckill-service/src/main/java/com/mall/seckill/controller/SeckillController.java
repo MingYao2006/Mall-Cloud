@@ -12,6 +12,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * 安全说明：
+ * userId 统一通过 @RequestHeader("X-User-Id") 从网关注入的请求头获取，
+ * 不再接收前端明文传入，防止越权操作。
+ */
 @RestController
 @RequestMapping("/seckill")
 @Validated
@@ -54,7 +59,7 @@ public class SeckillController {
             fallback = "handleSeckillFallback"
     )
     public Result<String> seckillCoupon(
-            @RequestHeader("userId") @NotNull(message = "用户ID不能为空") Long userId,
+            @RequestHeader("X-User-Id") @NotNull(message = "用户ID不能为空") Long userId,
             @PathVariable @NotNull(message = "优惠券ID不能为空") Long couponId) {
         // 发送消息到 RabbitMQ
         seckillService.sendSeckillMessage(userId, couponId);
@@ -65,7 +70,7 @@ public class SeckillController {
     @GetMapping("/doSeckill")
     @Operation(summary = "秒杀抢券（GET方式）")
     public Result<String> doSeckill(
-            @RequestParam("userId") @NotNull(message = "用户ID不能为空") Long userId,
+            @RequestHeader("X-User-Id") @NotNull(message = "用户ID不能为空") Long userId,
             @RequestParam("couponId") @NotNull(message = "优惠券ID不能为空") Long couponId) {
         // 发送消息到 RabbitMQ
         seckillService.sendSeckillMessage(userId, couponId);

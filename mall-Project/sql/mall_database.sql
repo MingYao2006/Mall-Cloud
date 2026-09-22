@@ -24,6 +24,7 @@ CREATE TABLE `user` (
     `gender` TINYINT DEFAULT 0 COMMENT '性别：0-未知，1-男，2-女',
     `avatar` VARCHAR(255) DEFAULT NULL COMMENT '头像URL',
     `status` TINYINT DEFAULT 1 COMMENT '状态：0-禁用，1-正常',
+    `role` TINYINT NOT NULL DEFAULT 0 COMMENT '角色：0-普通用户，1-管理员',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `is_deleted` TINYINT DEFAULT 0 COMMENT '逻辑删除：0-未删除，1-已删除',
@@ -159,9 +160,9 @@ CREATE TABLE `order_item` (
 -- =============================================
 
 -- 插入测试用户
-INSERT INTO `user` (`username`, `password`, `phone`, `email`, `gender`, `status`) VALUES
-('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '13800138000', 'admin@mall.com', 1, 1),
-('test', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '13800138001', 'test@mall.com', 2, 1);
+INSERT INTO `user` (`username`, `password`, `phone`, `email`, `gender`, `status`, `role`) VALUES
+('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '13800138000', 'admin@mall.com', 1, 1, 1),
+('test', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '13800138001', 'test@mall.com', 2, 1, 0);
 -- 说明：密码都是 123456（BCrypt加密）
 
 -- 插入商品分类

@@ -7,7 +7,6 @@ import com.mall.entity.Product;
 import com.mall.entity.vo.CartVO;
 import com.mall.feign.ProductServiceFeignClient;
 import com.mall.mapper.CartMapper;
-import com.mall.mapper.ProductMapper;
 import jakarta.annotation.Resource;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -24,13 +23,11 @@ import java.util.concurrent.TimeUnit;
 public class CartService {
 
     private final CartMapper cartMapper;
-    private final ProductMapper productMapper;
     @Autowired
-    private ProductServiceFeignClient productServiceFeignClient;
+    private ProductServiceFeignClient productService;
 
-    private CartService(CartMapper cartMapper, ProductMapper productMapper) {
+    private CartService(CartMapper cartMapper) {
         this.cartMapper = cartMapper;
-        this.productMapper = productMapper;
     }
 
     @Resource
@@ -68,8 +65,8 @@ public class CartService {
         }
 
 //        查询商品是否存在且上架状态
-        Result<Product> result = productServiceFeignClient.findById(productId);
-        Product product = result.getData();
+        Result<Product> result = productService.findById(productId);
+        Product product = result != null ? result.getData() : null;
         if (product == null) {
             throw new RuntimeException("商品不存在");
         }

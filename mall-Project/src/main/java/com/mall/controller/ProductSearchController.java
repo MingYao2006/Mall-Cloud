@@ -10,15 +10,14 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * 商品搜索 Controller - 微服务整合版
+ * 商品搜索 Controller - C端聚合服务（客户端版）
  * <p>
- * 与商品、分类等功能的整合架构保持一致：
- * 本 Controller 不再直接实现搜索逻辑，统一通过 Feign 调用 mall-search-service 微服务，
- * 搜索微服务内部基于 Elasticsearch 实现。
+ * 提供客户端商品搜索接口。
+ * ES 全量数据导入接口已迁移至 mall-project-admin。
  */
 @RestController
 @RequestMapping("/search")
-@Tag(name = "搜索服务", description = "商品搜索相关接口（聚合服务代理）")
+@Tag(name = "搜索服务", description = "商品搜索接口（客户端聚合服务代理）")
 public class ProductSearchController {
 
     private final SearchServiceFeignClient searchService;
@@ -57,13 +56,6 @@ public class ProductSearchController {
         return searchService.searchByBrand(brand);
     }
 
-    /**
-     * 全量导入商品数据到 ES（从 DB 同步）
-     * POST /search/import
-     */
-    @PostMapping("/import")
-    @Operation(summary = "导入商品数据到ES")
-    public Result<Integer> importAll() {
-        return searchService.importAll();
-    }
+    // ===== 以下管理端接口已迁移至 mall-project-admin =====
+    // POST /search/import → AdminSearchController.importAll
 }

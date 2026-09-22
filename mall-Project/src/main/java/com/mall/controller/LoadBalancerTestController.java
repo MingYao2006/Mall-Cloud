@@ -3,6 +3,8 @@ package com.mall.controller;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -17,6 +19,7 @@ import java.util.Map;
  * 负载均衡测试控制器
  * 用于测试 Spring Cloud LoadBalancer 的负载分发效果
  */
+@Tag(name = "负载均衡测试", description = "Spring Cloud LoadBalancer 负载分发测试接口")
 @RestController
 @RequestMapping("/lb-test")
 public class LoadBalancerTestController {
@@ -33,6 +36,7 @@ public class LoadBalancerTestController {
      * @param serviceName 服务名称（默认为当前服务）
      * @return 选中的服务实例信息
      */
+    @Operation(summary = "获取服务实例信息")
     @GetMapping("/instance")
     public Map<String, Object> testLoadBalancer(String serviceName) {
         if (serviceName == null || serviceName.isEmpty()) {
@@ -71,6 +75,7 @@ public class LoadBalancerTestController {
      * @param count 调用次数（默认10次）
      * @return 各实例被选中的次数统计
      */
+    @Operation(summary = "统计负载分发情况")
     @GetMapping("/stats")
     public Map<String, Object> testLoadBalancerStats(String serviceName, Integer count) {
         if (serviceName == null || serviceName.isEmpty()) {
@@ -107,6 +112,7 @@ public class LoadBalancerTestController {
      * @param serviceName 服务名称
      * @return 调用结果
      */
+    @Operation(summary = "RestTemplate调用服务")
     @GetMapping("/call")
     public Map<String, Object> callService(String serviceName) {
         if (serviceName == null || serviceName.isEmpty()) {
@@ -135,6 +141,7 @@ public class LoadBalancerTestController {
      * 测试接口 - 返回当前实例信息
      * 供 Feign 客户端调用，用于测试负载均衡
      */
+    @Operation(summary = "返回当前实例信息")
     @GetMapping("/test/instance")
     public String getInstanceInfo(String name) {
         return "Hello " + name + "! From instance: 192.168.114.1:8082";

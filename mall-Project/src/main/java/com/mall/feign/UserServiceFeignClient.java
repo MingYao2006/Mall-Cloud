@@ -1,14 +1,21 @@
 package com.mall.feign;
 
 import com.mall.common.Result;
+import com.mall.config.FeignMultipartSupportConfig;
 import com.mall.entity.User;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
-@FeignClient(name = "mall-user-service", path = "/users")
+@FeignClient(
+        name = "mall-user-service",
+        contextId = "userServiceFeignClient",
+        path = "/users",
+        configuration = FeignMultipartSupportConfig.class
+)
 public interface UserServiceFeignClient {
 
     /**
@@ -55,9 +62,11 @@ public interface UserServiceFeignClient {
 
     /**
      * 上传头像
+     * 注意：文件参数必须用 @RequestPart（而非 @RequestParam），
+     * 否则会被当作 URL 查询参数序列化，导致下游服务收不到文件
      */
-    @PostMapping("/avatar")
-    Result<String> uploadAvatar(@RequestParam("file") MultipartFile file, @RequestHeader("Authorization") String token);
+    @PostMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    Result<String> uploadAvatar(@RequestPart("file") MultipartFile file, @RequestHeader("Authorization") String token);
 
     /**
      * 发送验证码
@@ -76,4 +85,11 @@ public interface UserServiceFeignClient {
      */
     @PostMapping("/login/code")
     Result<Map<String, Object>> loginByCode(@RequestParam("phone") String phone, @RequestParam("code") String code);
+
+    /**
+     * 微信小程序登录
+     * 请求体字段：code（必填）、nickname、avatarUrl
+     */
+    @PostMapping("/wx-login")
+    Result<Map<String, Object>> wxLogin(@RequestBody Map<String, String> params);
 }

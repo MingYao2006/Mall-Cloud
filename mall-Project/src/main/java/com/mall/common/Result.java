@@ -1,10 +1,9 @@
 package com.mall.common;
 
-import com.mall.entity.User;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import lombok.Data;
 
-//todo 设置统一结果类
+// 设置统一结果类
 
 
 @Data

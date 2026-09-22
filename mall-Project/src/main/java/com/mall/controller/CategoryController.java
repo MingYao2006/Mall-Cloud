@@ -4,13 +4,19 @@ import com.mall.common.BusinessException;
 import com.mall.common.Result;
 import com.mall.entity.Category;
 import com.mall.feign.CategoryServiceFeignClient;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 /**
- * 商品分类Controller
+ * 商品分类Controller - C端聚合服务（客户端版）
+ * <p>
+ * 仅提供客户端所需的分类浏览、查询等只读接口。
+ * 分类的增删改、状态更新等管理接口已迁移至 mall-project-admin。
  */
+@Tag(name = "分类服务", description = "分类浏览接口（客户端聚合服务代理）")
 @RestController
 @RequestMapping("/category")
 public class CategoryController {
@@ -25,6 +31,7 @@ public class CategoryController {
      * 查询分类详情
      * GET /category/{id}
      */
+    @Operation(summary = "查询分类详情")
     @GetMapping("/{id}")
     public Result<Category> findById(@PathVariable Long id) {
         Result<Category> result = categoryFeignClient.getCategoryById(id);
@@ -35,36 +42,10 @@ public class CategoryController {
     }
 
     /**
-     * 添加分类
-     * POST /category
-     */
-    @PostMapping
-    public Result<String> add(@RequestBody Category category) {
-        return categoryFeignClient.addCategory(category);
-    }
-
-    /**
-     * 更新分类
-     * PUT /category
-     */
-    @PutMapping
-    public Result<String> update(@RequestBody Category category) {
-        return categoryFeignClient.updateCategory(category);
-    }
-
-    /**
-     * 删除分类
-     * DELETE /category/{id}
-     */
-    @DeleteMapping("/{id}")
-    public Result<String> deleteById(@PathVariable Long id) {
-        return categoryFeignClient.deleteCategory(id);
-    }
-
-    /**
      * 查询子分类
      * GET /category/children/{parentId}
      */
+    @Operation(summary = "查询子分类")
     @GetMapping("/children/{parentId}")
     public Result<List<Category>> findByParentId(@PathVariable Long parentId) {
         return categoryFeignClient.findByParentId(parentId);
@@ -74,6 +55,7 @@ public class CategoryController {
      * 按层级查询分类
      * GET /category/level/{level}
      */
+    @Operation(summary = "按层级查询分类")
     @GetMapping("/level/{level}")
     public Result<List<Category>> findByLevel(@PathVariable Integer level) {
         return categoryFeignClient.findByLevel(level);
@@ -83,17 +65,15 @@ public class CategoryController {
      * 查询所有分类
      * GET /category/list
      */
+    @Operation(summary = "查询所有分类")
     @GetMapping("/list")
     public Result<List<Category>> findAll() {
         return categoryFeignClient.listCategories();
     }
 
-    /**
-     * 更新分类状态
-     * PUT /category/status
-     */
-    @PutMapping("/status")
-    public Result<String> updateStatus(@RequestParam Long id, @RequestParam Integer status) {
-        return categoryFeignClient.updateStatus(id, status);
-    }
+    // ===== 以下管理端接口已迁移至 mall-project-admin =====
+    // POST   /category        → AdminCategoryController.add
+    // PUT    /category        → AdminCategoryController.update
+    // DELETE /category/{id}   → AdminCategoryController.deleteById
+    // PUT    /category/status → AdminCategoryController.updateStatus
 }

@@ -2,6 +2,8 @@ package com.mall.controller;
 
 import com.mall.common.BusinessException;
 import com.mall.feign.TestFeignClient;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,6 +15,7 @@ import java.util.Map;
 /**
  * Feign 负载均衡测试控制器
  */
+@Tag(name = "Feign负载均衡测试", description = "Feign 调用与负载均衡测试接口")
 @RestController
 @RequestMapping("/feign-test")
 public class FeignTestController {
@@ -23,6 +26,7 @@ public class FeignTestController {
     /**
      * 使用 Feign 调用服务（自动负载均衡）
      */
+    @Operation(summary = "使用Feign调用服务")
     @GetMapping("/call")
     public Map<String, Object> callService() {
         Map<String, Object> result = new HashMap<>();
@@ -42,6 +46,7 @@ public class FeignTestController {
     /**
      * 多次调用统计负载均衡分布
      */
+    @Operation(summary = "统计负载均衡分布")
     @GetMapping("/stats")
     public Map<String, Object> testLoadBalancerStats(Integer count) {
         if (count == null || count <= 0) {

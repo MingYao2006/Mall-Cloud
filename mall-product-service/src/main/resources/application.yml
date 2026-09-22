@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: mall-product-service
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev,local}
   cloud:
     nacos:
       discovery:
@@ -61,6 +63,29 @@ mybatis-plus:
 
 knife4j:
   enable: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: '商品服务API'
+      paths-to-match: '/**'
+      packages-to-scan: com.mall.product.controller
+
+# Swagger 文档信息配置
+swagger:
+  title: 商品服务API文档
+  description: 商品服务接口文档，包含商品的增删改查、分类管理等功能
+  version: 1.0.0
+  contact:
+    name: mingyao
+    email: support@example.com
+  license: Apache 2.0
+  license-url: https://www.apache.org/licenses/LICENSE-2.0
 
 # 开启 Feign 对 Sentinel 的支持
 feign:

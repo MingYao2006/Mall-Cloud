@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice // 全局异常处理器，自动捕获所有 Controller 抛出的异常
 @Slf4j // Lombok 注解，自动生成 log 日志对象
@@ -110,6 +111,21 @@ public class GlobalExceptionHandler { // 全局异常处理器类
         log.warn("业务异常: {}", e.getMessage()); // 记录警告日志，输出异常消息
         
         return Result.error(e.getCode(), e.getMessage()); // 返回错误结果，使用异常中的错误码和消息
+        
+    }
+    
+    
+    /**
+     * 处理静态资源未找到异常（如 favicon.ico）
+     * 浏览器会自动请求 favicon.ico 等静态资源，未找到时静默处理，避免打印完整错误堆栈
+     */
+    @ExceptionHandler(NoResourceFoundException.class) // 指定处理的异常类型
+    @ResponseStatus(HttpStatus.NOT_FOUND) // 设置响应状态码为 404（资源不存在）
+    public Result<?> handleNoResourceFound(NoResourceFoundException e) { // 异常处理方法
+        
+        log.debug("静态资源未找到: {}", e.getResourcePath()); // 使用 debug 级别记录，不打印堆栈
+        
+        return Result.error(404, "资源不存在"); // 返回 404 错误结果
         
     }
     

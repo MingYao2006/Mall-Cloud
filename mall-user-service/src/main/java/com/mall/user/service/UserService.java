@@ -2,10 +2,16 @@ package com.mall.user.service;
 
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.ReUtil;
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.http.HttpUtil;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.mall.common.JwtUtil;
+import com.mall.common.RedisService;
 import com.mall.common.Result;
+import com.mall.user.dto.WxLoginRequest;
 import com.mall.user.entity.User;
 import com.mall.user.mapper.UserMapper;
 import jakarta.annotation.Resource;
@@ -14,6 +20,7 @@ import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -45,6 +52,17 @@ public class UserService {
 
     // BCrypt 密码加密器
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
+    // ============ 微信小程序配置（见 application.yaml 的 wechat.miniapp） ============
+
+    @Value("${wechat.miniapp.appid:}")
+    private String wxAppid;
+
+    @Value("${wechat.miniapp.secret:}")
+    private String wxSecret;
+
+    @Value("${wechat.miniapp.jscode2session-url:https://api.weixin.qq.com/sns/jscode2session}")
+    private String wxJscode2SessionUrl;
 
     /**
      * 用户注册
@@ -126,7 +144,7 @@ public class UserService {
     }
 
     /**
-     * todo 用户登录
+     * 用户登录
      */
     public Result<Map<String, Object>> login(String username, String password) {
         // 1. 校验参数
@@ -166,22 +184,25 @@ public class UserService {
         }
 
         // 5. 生成 Token
-        String token = JwtUtil.generateToken(user.getId(), user.getUsername());
+        String token = JwtUtil.generateToken(user.getId(), user.getUsername(), String.valueOf(user.getRole()));
 
         // 6. 返回用户信息（不包含密码）
         Map<String, Object> userInfo = new HashMap<>();
         userInfo.put("id", user.getId());
         userInfo.put("username", user.getUsername());
+        userInfo.put("nickname", user.getNickname());
         userInfo.put("email", user.getEmail());
         userInfo.put("phone", user.getPhone());
         userInfo.put("avatar", user.getAvatar());
+        userInfo.put("status", user.getStatus());
+        userInfo.put("role", user.getRole() != null ? user.getRole() : 0);
         userInfo.put("token", token);
 
         return Result.success(userInfo);
     }
 
     /**
-     * todo 根据ID获取用户信息
+     * 根据ID获取用户信息
      */
     public Result<User> findById(Long id) {
         if (id == null) {
@@ -292,7 +313,7 @@ public class UserService {
     }
 
     /**
-     * todo 更新用户信息
+     * 更新用户信息
      */
     @Transactional
     public Result<Object> updateUserInfo(User user) {
@@ -350,13 +371,19 @@ public class UserService {
 //第一个参数如果填user会修改所有非null的属性 无法实现动态修改
         int rows = userMapper.update(null, updateWrapper);
         if (rows > 0) {
+            // 删除用户详情缓存，避免刷新页面时读到 Redis 中的旧数据
+            try {
+                redisService.delete(USER_CACHE_KEY + "detail:" + user.getId());
+            } catch (Exception e) {
+                System.err.println("删除用户缓存失败: " + e.getMessage());
+            }
             return Result.success("更新成功");
         }
         return Result.error(500, "更新失败");
     }
 
     /**
-     * todo 更新密码
+     * 更新密码
      */
     @Transactional
     public Result<Object> updatePassword(Long userId, String oldPassword, String newPassword) {
@@ -393,7 +420,7 @@ public class UserService {
 
 
     /**
-     * todo 上传头像
+     * 上传头像
      */
 //    MultipartFile file：Spring框架提供的接口，用于接收上传的文件
     public Result<String> uploadAvatar(Long userId, org.springframework.web.multipart.MultipartFile file) {
@@ -459,11 +486,11 @@ public class UserService {
 
             // 7. 更新用户头像 URL
             String avatarUrl = "/uploads/avatar/" + newFilename;
-            LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
-            queryWrapper.eq(User::getId, userId).
-                    eq(User::getAvatar, avatarUrl);
+            LambdaUpdateWrapper<User> updateWrapper = new LambdaUpdateWrapper<>();
+            updateWrapper.eq(User::getId, userId)
+                    .set(User::getAvatar, avatarUrl);
 
-            int rows = userMapper.update(null, queryWrapper);
+            int rows = userMapper.update(null, updateWrapper);
 
             if (rows > 0) {
                 return Result.success(avatarUrl);
@@ -604,7 +631,7 @@ public class UserService {
         }
 
         // 生成 Token + 返回用户信息（与密码登录保持一致）
-        String token = JwtUtil.generateToken(user.getId(), user.getUsername());
+        String token = JwtUtil.generateToken(user.getId(), user.getUsername(), String.valueOf(user.getRole()));
         Map<String, Object> userInfo = new HashMap<>();
         userInfo.put("id", user.getId());
         userInfo.put("username", user.getUsername());
@@ -613,6 +640,199 @@ public class UserService {
         userInfo.put("avatar", user.getAvatar());
         userInfo.put("token", token);
         return Result.success(userInfo);
+    }
+
+    /**
+     * 微信小程序登录
+     * <p>
+     * 实现流程：
+     * 1. 校验 code 与微信配置
+     * 2. 调用微信 jscode2session 接口，用 code 换取 openid / unionid
+     * 3. 按 openid 查用户：存在则直接登录，不存在则自动注册
+     * 4. 签发 JWT，返回结构与账号密码登录保持完全一致
+     *
+     * @param request 微信登录请求（code 必填，nickname / avatarUrl 可选）
+     * @return 登录结果（包含用户信息和 token）
+     */
+    public Result<Map<String, Object>> wxLogin(WxLoginRequest request) {
+        // 1. 参数与配置校验
+        if (request == null || StrUtil.isBlank(request.getCode())) {
+            return Result.error(400, "微信登录 code 不能为空");
+        }
+        if (StrUtil.isBlank(wxAppid) || StrUtil.isBlank(wxSecret)
+                || wxAppid.startsWith("your-")) {
+            log.error("微信小程序 AppID / AppSecret 未配置，请检查 application.yaml");
+            return Result.error(500, "微信登录暂未开通，请联系管理员");
+        }
+
+        // 2. 用 code 换取 openid
+        String openid;
+        String unionid;
+        try {
+            JSONObject session = requestWechatSession(request.getCode().trim());
+            openid = session.getStr("openid");
+            unionid = session.getStr("unionid");
+        } catch (IllegalStateException e) {
+            log.warn("微信登录失败：{}", e.getMessage());
+            return Result.error(400, e.getMessage());
+        } catch (Exception e) {
+            log.error("调用微信 jscode2session 异常", e);
+            return Result.error(500, "微信登录服务异常，请稍后重试");
+        }
+
+        if (StrUtil.isBlank(openid)) {
+            return Result.error(400, "微信登录失败：未获取到 openid");
+        }
+
+        // 3. 按 openid 查用户
+        User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .eq(User::getOpenid, openid));
+
+        if (user == null) {
+            // 首次登录，自动注册。用分布式锁防止同一 openid 并发建号
+            String lockKey = "lock:user:register:openid:" + openid;
+            RLock lock = redissonClient.getLock(lockKey);
+            try {
+                boolean tryLock = lock.tryLock(3, 10, TimeUnit.SECONDS);
+                if (!tryLock) {
+                    return Result.error(500, "系统繁忙，请稍后重试");
+                }
+                // Double Check：拿到锁后重新查一次
+                User existUser = userMapper.selectOne(new LambdaQueryWrapper<User>()
+                        .eq(User::getOpenid, openid));
+                if (existUser != null) {
+                    user = existUser;
+                } else {
+                    user = createWxUser(openid, unionid, request);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return Result.error(500, "系统异常，请稍后重试");
+            } finally {
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
+            }
+        } else {
+            // 老用户：校验账号状态
+            if (user.getStatus() != null && user.getStatus() == 0) {
+                return Result.error(403, "账号已被禁用");
+            }
+            if (user.getIsDeleted() != null && user.getIsDeleted() == 1) {
+                return Result.error(403, "账号不存在");
+            }
+            // 昵称、头像有变化时同步一次
+            syncWxProfile(user, request);
+        }
+
+        if (user == null || user.getId() == null) {
+            return Result.error(500, "微信登录失败，请重试");
+        }
+
+        // 4. 生成 Token + 返回用户信息（与密码登录结构一致）
+        String token = JwtUtil.generateToken(user.getId(), user.getUsername(), String.valueOf(user.getRole()));
+        Map<String, Object> userInfo = new HashMap<>();
+        userInfo.put("id", user.getId());
+        userInfo.put("username", user.getUsername());
+        userInfo.put("nickname", user.getNickname());
+        userInfo.put("phone", user.getPhone());
+        userInfo.put("avatar", user.getAvatar());
+        userInfo.put("token", token);
+        log.info("微信登录成功：openid={}, userId={}", openid, user.getId());
+        return Result.success(userInfo);
+    }
+
+    /**
+     * 调用微信 jscode2session 接口换取 openid
+     *
+     * @param code 小程序端 uni.login 获取的临时凭证
+     * @return 微信返回的 JSON 对象（含 openid / session_key / unionid）
+     * @throws IllegalStateException 微信返回错误码时抛出，消息为可读文案
+     */
+    private JSONObject requestWechatSession(String code) {
+        String url = wxJscode2SessionUrl
+                + "?appid=" + wxAppid
+                + "&secret=" + wxSecret
+                + "&js_code=" + code
+                + "&grant_type=authorization_code";
+
+        String body = HttpUtil.get(url, 5000);
+        JSONObject json = JSONUtil.parseObj(body);
+
+        Integer errcode = json.getInt("errcode");
+        if (errcode != null && errcode != 0) {
+            String errmsg = json.getStr("errmsg", "未知错误");
+            log.warn("微信 jscode2session 返回错误：errcode={}, errmsg={}", errcode, errmsg);
+            throw new IllegalStateException("微信登录失败：" + translateWxError(errcode, errmsg));
+        }
+        return json;
+    }
+
+    /**
+     * 创建微信新用户
+     * <p>
+     * 微信登录无密码，写入随机密码占位，该账号无法通过密码登录；
+     * 手机号留空，用户后续可在个人资料中绑定。
+     */
+    private User createWxUser(String openid, String unionid, WxLoginRequest request) {
+        User user = new User();
+        user.setOpenid(openid);
+        user.setUnionid(unionid);
+        // 用户名前缀用 wx_ 与验证码登录的 mall_ 区分，便于排查
+        user.setUsername("wx_" + RandomUtil.randomString(8));
+        user.setNickname(StrUtil.isNotBlank(request.getNickname())
+                ? request.getNickname()
+                : "微信用户" + RandomUtil.randomNumbers(4));
+        user.setAvatar(StrUtil.isNotBlank(request.getAvatarUrl()) ? request.getAvatarUrl() : null);
+        user.setPassword(passwordEncoder.encode(RandomUtil.randomString(12)));
+        user.setStatus(1);
+        user.setRole(0);
+        user.setIsDeleted(0);
+        user.setCreateTime(LocalDateTime.now());
+        user.setUpdateTime(LocalDateTime.now());
+        userMapper.insert(user);
+        log.info("微信登录自动注册新用户：openid={}, username={}", openid, user.getUsername());
+        return user;
+    }
+
+    /**
+     * 同步微信侧的昵称与头像（仅在确实发生变化时更新）
+     */
+    private void syncWxProfile(User user, WxLoginRequest request) {
+        LambdaUpdateWrapper<User> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(User::getId, user.getId());
+        boolean changed = false;
+
+        if (StrUtil.isNotBlank(request.getNickname())
+                && !request.getNickname().equals(user.getNickname())) {
+            wrapper.set(User::getNickname, request.getNickname());
+            user.setNickname(request.getNickname());
+            changed = true;
+        }
+        if (StrUtil.isNotBlank(request.getAvatarUrl())
+                && !request.getAvatarUrl().equals(user.getAvatar())) {
+            wrapper.set(User::getAvatar, request.getAvatarUrl());
+            user.setAvatar(request.getAvatarUrl());
+            changed = true;
+        }
+        if (changed) {
+            wrapper.set(User::getUpdateTime, LocalDateTime.now());
+            userMapper.update(null, wrapper);
+        }
+    }
+
+    /**
+     * 微信错误码转换为可读文案
+     */
+    private String translateWxError(Integer errcode, String errmsg) {
+        return switch (errcode) {
+            case 40029 -> "code 无效或已过期，请重新登录";
+            case 45011 -> "请求过于频繁，请稍后重试";
+            case 40226 -> "该用户被微信标记为高风险，无法登录";
+            case 40013 -> "AppID 配置错误";
+            case 40125 -> "AppSecret 配置错误";
+            default -> errmsg;
+        };
     }
 
 }

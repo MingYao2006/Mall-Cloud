@@ -3,19 +3,20 @@ package com.mall.controller;
 import com.mall.common.PageResult;
 import com.mall.common.Result;
 import com.mall.entity.Product;
-import com.mall.entity.query.ProductQuery;
 import com.mall.feign.ProductServiceFeignClient;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
 /**
- * 商品Controller - 微服务整合版
+ * 商品Controller - C端聚合服务（客户端版）
  * <p>
- * 与分类功能保持一致的整合架构：
- * 本 Controller 不再直接操作数据库，统一通过 Feign 调用 mall-product-service 微服务。
+ * 仅提供客户端所需的商品浏览、搜索等只读接口。
+ * 商品的增删改、上下架、库存管理、图片上传等管理接口已迁移至 mall-project-admin。
  */
+@Tag(name = "商品服务", description = "商品浏览接口（客户端聚合服务代理）")
 @RestController
 @RequestMapping("/product")
 public class ProductController {
@@ -27,36 +28,10 @@ public class ProductController {
     }
 
     /**
-     * 添加商品
-     * POST /product
-     */
-    @PostMapping
-    public Result<Object> add(@RequestBody Product product) {
-        return productService.add(product);
-    }
-
-    /**
-     * 更新商品
-     * PUT /product
-     */
-    @PutMapping
-    public Result<Object> update(@RequestBody Product product) {
-        return productService.update(product);
-    }
-
-    /**
-     * 删除商品
-     * DELETE /product/{id}
-     */
-    @DeleteMapping("/{id}")
-    public Result<Object> delete(@PathVariable Long id) {
-        return productService.delete(id);
-    }
-
-    /**
      * 根据ID查询商品详情
      * GET /product/{id}
      */
+    @Operation(summary = "根据ID查询商品详情")
     @GetMapping("/{id}")
     public Result<Product> findById(@PathVariable Long id) {
         return productService.findById(id);
@@ -66,6 +41,7 @@ public class ProductController {
      * 获取所有商品列表
      * GET /product/list
      */
+    @Operation(summary = "获取所有商品列表")
     @GetMapping("/list")
     public Result<List<Product>> findAll() {
         return productService.findAll();
@@ -75,6 +51,7 @@ public class ProductController {
      * 根据分类ID查询商品列表
      * GET /product/category/{categoryId}
      */
+    @Operation(summary = "根据分类ID查询商品列表")
     @GetMapping("/category/{categoryId}")
     public Result<List<Product>> listProductsByCategory(@PathVariable Long categoryId) {
         return productService.listProductsByCategory(categoryId);
@@ -84,6 +61,7 @@ public class ProductController {
      * 根据状态查询商品列表
      * GET /product/status/{status}
      */
+    @Operation(summary = "根据状态查询商品列表")
     @GetMapping("/status/{status}")
     public Result<List<Product>> listProductsByStatus(@PathVariable Integer status) {
         return productService.listProductsByStatus(status);
@@ -93,6 +71,7 @@ public class ProductController {
      * 搜索商品（名称模糊查询）
      * GET /product/search?keyword=xxx
      */
+    @Operation(summary = "搜索商品")
     @GetMapping("/search")
     public Result<List<Product>> searchProducts(@RequestParam String keyword) {
         return productService.searchProducts(keyword);
@@ -102,6 +81,7 @@ public class ProductController {
      * 分页查询商品
      * GET /product/page?pageNum=1&pageSize=10
      */
+    @Operation(summary = "分页查询商品")
     @GetMapping("/page")
     public Result<PageResult> listProductsByPage(
             @RequestParam(defaultValue = "1") Integer pageNum,
@@ -110,87 +90,51 @@ public class ProductController {
     }
 
     /**
-     * 条件组合分页查询
-     * POST /product/page/query
+     * 校验商品是否存在（下单时内部调用）
+     * GET /product/check/{id}
      */
-    @PostMapping("/page/query")
-    public Result<PageResult> listProductsByCondition(@RequestBody ProductQuery query) {
-        return productService.listProductsByCondition(query);
-    }
-
-    /**
-     * 更新库存
-     */
-    @PostMapping("/stock/{id}")
-    public Result<String> updateStock(@PathVariable Long id, @RequestParam Integer stock) {
-        return productService.updateStock(id, stock);
-    }
-
-/**
- * 扣减库存（下单时）
- */
-    @PostMapping("/stock/decrease/{id}")
-    public Result<String> decreaseStock(@PathVariable Long id, @RequestParam Integer quantity) {
-        return productService.decreaseStock(id, quantity);
-    }
-
-    /**
-     * 添加库存
-     * POST /product/stock/increase/{id}
-     */
-    @PostMapping("/stock/increase/{id}")
-    public Result<Object> increaseStock(@PathVariable Long id, @RequestParam Integer quantity) {
-        return productService.increaseStock(id, quantity);
-    }
-
-    /**
-     * 增加销量（支付成功后）
-     */
-    @PostMapping("/sales/{id}")
-    public Result<String> increaseSales(@PathVariable Long id, @RequestParam Integer quantity) {
-        return productService.increaseSales(id, quantity);
-    }
-
-    /**
-     * 上架商品
-     */
-    @PostMapping("/publish/{id}")
-    public Result<String> publishProduct(@PathVariable Long id) {
-        return productService.publishProduct(id);
-    }
-
-    /**
-     * 下架商品
-     */
-    @PostMapping("/unpublish/{id}")
-    public Result<String> unpublishProduct(@PathVariable Long id) {
-        return productService.unpublishProduct(id);
-    }
-
-    /**
-     * 校验商品是否存在
-     */
+    @Operation(summary = "校验商品是否存在")
     @GetMapping("/check/{id}")
     public Result<Boolean> checkProductExists(@PathVariable Long id) {
         return productService.checkProductExists(id);
     }
 
     /**
-     * 校验库存是否充足
+     * 校验库存是否充足（下单时内部调用）
+     * GET /product/checkstock/{id}
      */
+    @Operation(summary = "校验库存是否充足")
     @GetMapping("/checkstock/{id}")
     public Result<Boolean> checkStockEnough(@PathVariable Long id, @RequestParam Integer quantity) {
         return productService.checkStockEnough(id, quantity);
     }
 
+    // ===== 以下管理端接口已迁移至 mall-project-admin =====
+    // POST   /product           → AdminProductController.add
+    // PUT    /product           → AdminProductController.update
+    // DELETE /product/{id}      → AdminProductController.delete
+    // POST   /product/publish/{id}   → AdminProductController.publishProduct
+    // POST   /product/unpublish/{id} → AdminProductController.unpublishProduct
+    // POST   /product/stock/{id}     → AdminProductController.updateStock
+    // POST   /product/stock/increase/{id}  → AdminProductController.increaseStock
+    // POST   /product/upload/image  → AdminProductController.uploadImage
+    // POST   /product/page/query    → AdminProductController.listProductsByCondition
+
     /**
-     * 上传商品主图
-     * POST /product/upload/image
+     * 扣减库存（下单时内部调用，C端保留）
      */
-    @PostMapping("/upload/image")
-    public Result<String> uploadImage(@RequestParam("file") MultipartFile file) {
-        return productService.uploadImage(file);
+    @Operation(summary = "扣减库存")
+    @PostMapping("/stock/decrease/{id}")
+    public Result<String> decreaseStock(@PathVariable Long id, @RequestParam Integer quantity) {
+        return productService.decreaseStock(id, quantity);
     }
 
-
+    /**
+     * 增加销量（支付成功后内部调用，C端保留）
+     */
+    @Operation(summary = "增加销量")
+    @PostMapping("/sales/{id}")
+    public Result<String> increaseSales(@PathVariable Long id, @RequestParam Integer quantity) {
+        return productService.increaseSales(id, quantity);
+    }
 }

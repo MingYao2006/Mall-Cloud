@@ -7,12 +7,15 @@ import com.mall.common.Result;
 import com.mall.product.entity.Product;
 import com.mall.product.entity.query.ProductQuery;
 import com.mall.product.service.ProductService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+@Tag(name = "商品服务", description = "商品相关接口")
 @RestController
 @RequestMapping("/product")
 public class ProductController {
@@ -27,6 +30,7 @@ public class ProductController {
     /**
      * 测试接口
      */
+    @Operation(summary = "测试接口")
     @GetMapping("/test")
     public Result<String> test() {
         return Result.success("商品服务接口正常工作");
@@ -36,6 +40,7 @@ public class ProductController {
      * 添加商品
      * POST /product
      */
+    @Operation(summary = "添加商品")
     @PostMapping
     public Result<Object> add(@RequestBody @Valid Product product) {
         productService.add(product);
@@ -46,6 +51,7 @@ public class ProductController {
      * 更新商品
      * PUT /product
      */
+    @Operation(summary = "更新商品")
     @PutMapping
     public Result<Object> update(@RequestBody @Valid Product product) {
         productService.update(product);
@@ -56,6 +62,7 @@ public class ProductController {
      * 删除商品
      * DELETE /product/{id}
      */
+    @Operation(summary = "删除商品")
     @DeleteMapping("/{id}")
     public Result<Object> delete(@PathVariable Long id) {
         productService.delete(id);
@@ -66,6 +73,7 @@ public class ProductController {
      * 根据ID查询商品详情
      * GET /product/{id}
      */
+    @Operation(summary = "根据ID查询商品详情")
     @GetMapping("/{id}")
     @SentinelResource(
             value = "getProductDetail",
@@ -80,6 +88,7 @@ public class ProductController {
      * 获取所有商品列表
      * GET /product/list
      */
+    @Operation(summary = "获取所有商品列表")
     @GetMapping("/list")
     @SentinelResource(
             value = "listAllProducts",
@@ -94,6 +103,7 @@ public class ProductController {
      * 根据分类ID查询商品列表
      * GET /product/category/{categoryId}
      */
+    @Operation(summary = "根据分类ID查询商品列表")
     @GetMapping("/category/{categoryId}")
     @SentinelResource(
             value = "listProductsByCategory",
@@ -108,6 +118,7 @@ public class ProductController {
      * 根据状态查询商品列表
      * GET /product/status/{status}
      */
+    @Operation(summary = "根据状态查询商品列表")
     @GetMapping("/status/{status}")
     public Result<List<Product>> listProductsByStatus(@PathVariable Integer status) {
         List<Product> products = productService.listProductsByStatus(status);
@@ -118,6 +129,7 @@ public class ProductController {
      * 搜索商品（名称模糊查询）
      * GET /product/search?keyword=xxx
      */
+    @Operation(summary = "搜索商品")
     @GetMapping("/search")
     @SentinelResource(
             value = "searchProducts",
@@ -132,6 +144,7 @@ public class ProductController {
      * 分页查询商品
      * GET /product/page?pageNum=1&pageSize=10
      */
+    @Operation(summary = "分页查询商品")
     @GetMapping("/page")
     @SentinelResource(
             value = "listProductsByPage",
@@ -148,6 +161,7 @@ public class ProductController {
      * 条件组合分页查询
      * POST /product/page/query
      */
+    @Operation(summary = "条件组合分页查询")
     @PostMapping("/page/query")
     public Result<PageResult> listProductsByCondition(@RequestBody ProductQuery query) {
         PageResult pageResult = productService.listProductsByCondition(query);
@@ -157,6 +171,7 @@ public class ProductController {
     /**
      * 更新库存
      */
+    @Operation(summary = "更新库存")
     @PostMapping("/stock/{id}")
     public Result<Object> updateStock(@PathVariable Long id,@RequestParam Integer stock) {
         productService.updateStock(id, stock);
@@ -166,6 +181,7 @@ public class ProductController {
 /**
  * 扣减库存（下单时）
  */
+    @Operation(summary = "扣减库存")
     @PostMapping("/stock/decrease/{id}")
     public Result<Object> decreaseStock(@PathVariable Long id,@RequestParam Integer quantity) {
         productService.decreaseStock(id, quantity);
@@ -176,6 +192,7 @@ public class ProductController {
      * 添加库存
      * POST /product/stock/increase/{id}
      */
+    @Operation(summary = "添加库存")
     @PostMapping("/stock/increase/{id}")
     public Result<Object> increaseStock(@PathVariable Long id,@RequestParam Integer quantity) {
         productService.increaseStock(id, quantity);
@@ -185,6 +202,7 @@ public class ProductController {
     /**
      * 增加销量（支付成功后）
      */
+    @Operation(summary = "增加销量")
     @PostMapping("/sales/{id}")
     public Result<Object> increaseSales(@PathVariable Long id,@RequestParam Integer quantity) {
         productService.increaseSales(id, quantity);
@@ -194,6 +212,7 @@ public class ProductController {
     /**
      * 上架商品
      */
+    @Operation(summary = "上架商品")
     @PostMapping("/publish/{id}")
     public Result<Object> publishProduct(@PathVariable Long id) {
         productService.publishProduct(id);
@@ -203,6 +222,7 @@ public class ProductController {
     /**
      * 下架商品
      */
+    @Operation(summary = "下架商品")
     @PostMapping("/unpublish/{id}")
     public Result<Object> unpublishProduct(@PathVariable Long id) {
         productService.unpublishProduct(id);
@@ -212,6 +232,7 @@ public class ProductController {
     /**
      * 校验商品是否存在
      */
+    @Operation(summary = "校验商品是否存在")
     @GetMapping("/check/{id}")
     public Result<Object> checkProductExists(@PathVariable Long id) {
         boolean exists = productService.checkProductExists(id);
@@ -221,6 +242,7 @@ public class ProductController {
     /**
      * 校验库存是否充足
      */
+    @Operation(summary = "校验库存是否充足")
     @GetMapping("/checkstock/{id}")
     public Result<Object> checkStockEnough(@PathVariable Long id,@RequestParam Integer quantity) {
         boolean enough = productService.checkStockEnough(id, quantity);
@@ -231,8 +253,9 @@ public class ProductController {
      * 上传商品主图
      * POST /product/upload/image
      */
+    @Operation(summary = "上传商品主图")
     @PostMapping("/upload/image")
-    public Result<String> uploadImage(@RequestParam("file") MultipartFile file) {
+    public Result<String> uploadImage(@RequestPart("file") MultipartFile file) {
         return productService.uploadMainImage(file);
     }
     /**

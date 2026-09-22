@@ -827,9 +827,8 @@ public class ProductService {
             // 分类条件
             wrapper.eq(query.getCategoryId() != null, Product::getCategoryId, query.getCategoryId());
 
-            // 状态条件：未指定状态时，默认查询上架商品（status=1）
-            Integer status = query.getStatus() != null ? query.getStatus() : 1;
-            wrapper.eq(Product::getStatus, status);
+            // 状态条件：指定了状态才过滤，未指定时查询全部商品
+            wrapper.eq(query.getStatus() != null, Product::getStatus, query.getStatus());
 
             // 关键字模糊查询：优先使用 keyword，为空时回退到 name
             String searchKeyword = query.getKeyword();

@@ -165,6 +165,6 @@ public interface ProductServiceFeignClient {
      * POST /product/upload/image（multipart/form-data）
      */
     @PostMapping(value = "/upload/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    Result<String> uploadImage(@RequestParam("file") MultipartFile file);
+    Result<String> uploadImage(@RequestPart("file") MultipartFile file);
 }
 

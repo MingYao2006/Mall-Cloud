@@ -14,9 +14,9 @@ import java.util.List;
  * 订单服务 Feign 客户端
  */
 @FeignClient(
-        name = "mall-project",
+        name = "mall-order-service",
         contextId = "orderServiceFeignClient",
-        path = "/api/orders"
+        path = "/orders"
 )
 public interface OrderServiceFeignClient {
 
@@ -54,4 +54,18 @@ public interface OrderServiceFeignClient {
      */
     @PutMapping("/{orderId}/pay")
     Result<String> payOrder(@PathVariable("orderId") Long orderId);
+
+    /**
+     * 根据订单ID查询订单实体（发起支付前查询订单信息）
+     * GET /api/orders/entity/{orderId}
+     */
+    @GetMapping("/entity/{orderId}")
+    Result<Order> getOrderEntity(@PathVariable("orderId") Long orderId);
+
+    /**
+     * 根据订单号支付订单（支付宝异步回调用，幂等）
+     * PUT /api/orders/payByOrderNo/{orderNo}
+     */
+    @PutMapping("/payByOrderNo/{orderNo}")
+    Result<String> payOrderByOrderNo(@PathVariable("orderNo") String orderNo);
 }

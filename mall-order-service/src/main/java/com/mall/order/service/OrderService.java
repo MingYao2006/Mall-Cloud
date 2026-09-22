@@ -466,7 +466,7 @@ public class OrderService {
      * 4. 查询订单详情列表（订单项）
      * 5. 组装返回对象，包含订单基本信息和订单项列表
      * <p>
-     * todo 缓存穿透： 恶意用户频繁请求不存在的订单ID
+     * 缓存穿透： 恶意用户频繁请求不存在的订单ID
      */
     public OrderDetailVO getOrderByOrderId(Long orderId) {
         // 1. 参数校验  第1层：参数校验
@@ -616,7 +616,7 @@ public class OrderService {
         if (orderItems == null || orderItems.isEmpty()) {
             throw new BusinessException(400, "订单中没有商品");
         }
-        // 6.todo 恢复商品库存
+        // 6. 恢复商品库存
         for (OrderItem item : orderItems) {
             decreaseStockForCancel(item.getProductId(), item.getQuantity());
         }
@@ -657,7 +657,7 @@ public class OrderService {
 
     /**
      * 取消订单时恢复库存（原子操作，防止并发问题）
-     * todo 互斥锁 ：防止取消订单恢复库存时与下单扣库存冲突
+     * 互斥锁 ：防止取消订单恢复库存时与下单扣库存冲突
      */
     private void decreaseStockForCancel(Long productId, Integer quantity) {
         String redisKey = "lock:product:stock:" + productId;
@@ -776,6 +776,41 @@ public class OrderService {
         } catch (Exception e) {
             System.err.println("发送支付成功消息失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 根据订单ID查询订单实体
+     * <p>
+     * 供支付服务（发起支付前查询订单信息）通过 Feign 调用。
+     */
+    public Order getOrderById(Long orderId) {
+        if (orderId == null) {
+            return null;
+        }
+        return orderMapper.selectById(orderId);
+    }
+
+    /**
+     * 根据订单号支付订单（支付宝异步回调用，幂等）
+     * <p>
+     * 整合架构：聚合服务的支付回调通过 Feign 代理到本方法，
+     * 订单状态更新职责统一归属订单微服务。
+     */
+    @Transactional
+    public void payOrderByOrderNo(String orderNo) {
+        Order order = orderMapper.selectByOrderNo(orderNo);
+        if (order == null) {
+            throw new BusinessException(404, "订单不存在: " + orderNo);
+        }
+        if (order.getStatus() != 0) {
+            return; // 已支付，幂等处理
+        }
+        order.setStatus(1);
+        order.setPaymentTime(LocalDateTime.now());
+        order.setUpdateTime(LocalDateTime.now());
+        orderMapper.updateById(order);
+
+        sendPaymentMessage(order);
     }
 
 

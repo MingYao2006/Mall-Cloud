@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.connection.ReturnType;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -139,7 +140,16 @@ public class SeckillService {
                 redisTemplate.opsForValue().increment(COUPON_STOCK_KEY + couponId);
                 throw new BusinessException(500, "抢券失败，请重试");
             }
-            
+
+            // 校验活动时间（修复：防止已过期或未开始的券被抢）
+            if (coupon.getStartTime() == null || LocalDateTime.now().isBefore(coupon.getStartTime())) {
+                throw new BusinessException(600, "活动尚未开始");
+            }
+            if (coupon.getEndTime() == null || LocalDateTime.now().isAfter(coupon.getEndTime())) {
+                throw new BusinessException(600, "活动已结束");
+            }
+
+
             // 8. 生成用户优惠券
             UserCoupon userCoupon = new UserCoupon();
             userCoupon.setUserId(userId);

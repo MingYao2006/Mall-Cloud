@@ -49,17 +49,22 @@ export const useUserStore = defineStore('user', () => {
     const { userApi } = await import('@/api')
     const res = await userApi.updateInfo(data)
     // 更新成功后，刷新本地用户信息
+    await refreshUserInfo()
+    return res
+  }
+
+  async function refreshUserInfo() {
+    const { userApi } = await import('@/api')
     const infoRes = await userApi.getInfo()
     setUserInfo(infoRes.data)
-    return res
+    return infoRes
   }
 
   async function updateAvatar(file) {
     const { userApi } = await import('@/api')
     const res = await userApi.uploadAvatar(file)
     // 更新成功后，刷新本地用户信息
-    const infoRes = await userApi.getInfo()
-    setUserInfo(infoRes.data)
+    await refreshUserInfo()
     return res
   }
 
@@ -71,6 +76,7 @@ export const useUserStore = defineStore('user', () => {
     login,
     logout,
     updateUserInfo,
+    refreshUserInfo,
     updateAvatar
   }
 })

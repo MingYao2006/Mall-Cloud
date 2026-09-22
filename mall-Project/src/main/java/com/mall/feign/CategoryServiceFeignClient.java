@@ -11,7 +11,11 @@ import java.util.List;
  * 分类服务 Feign 客户端
  * 调用 mall-category-service 微服务
  */
-@FeignClient(name = "mall-category-service", path = "/category")
+@FeignClient(
+        name = "mall-category-service",
+        contextId = "categoryServiceFeignClient",
+        path = "/category"
+)
 public interface CategoryServiceFeignClient {
 
     /**

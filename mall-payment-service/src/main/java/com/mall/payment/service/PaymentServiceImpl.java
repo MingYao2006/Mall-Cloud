@@ -47,7 +47,9 @@ public class PaymentServiceImpl extends ServiceImpl<PaymentMapper, Payment> impl
         }
 
         if (payment.getStatus() != PaymentStatusEnum.PENDING.getCode()) {
-            return false;
+            // 幂等处理：已支付成功的支付单再次收到相同回调时，视为“已处理”并返回 true，
+            // 让支付宝/微信收到成功响应后停止重试，避免因返回失败而无限重试。
+            return payment.getStatus().equals(PaymentStatusEnum.SUCCESS.getCode());
         }
 
         payment.setStatus(callbackStatus);

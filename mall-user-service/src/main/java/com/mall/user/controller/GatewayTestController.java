@@ -1,5 +1,7 @@
 package com.mall.user.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,6 +15,7 @@ import java.util.Map;
  * 网关认证测试控制器
  * 用于验证网关的 Token 认证和用户信息传递功能
  */
+@Tag(name = "网关认证测试", description = "验证网关认证和用户信息传递")
 @RestController
 @RequestMapping("/user")
 public class GatewayTestController {
@@ -22,6 +25,7 @@ public class GatewayTestController {
      * 访问路径：/user/test
      * 需要通过网关认证才能访问
      */
+    @Operation(summary = "网关认证测试")
     @GetMapping("/test")
     public Map<String, Object> test(
             @RequestHeader(value = "X-User-Id", required = false) String userId,

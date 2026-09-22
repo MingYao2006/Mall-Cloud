@@ -60,6 +60,13 @@ public class CategoryController {
         return Result.success("删除成功");
     }
 
+    @GetMapping("/admin/list")
+    @Operation(summary = "获取所有分类（管理端用，包含禁用分类）")
+    public Result<List<Category>> listCategoriesForAdmin() {
+        List<Category> categories = categoryService.getAllCategoriesForAdmin();
+        return Result.success(categories);
+    }
+
     @GetMapping("/list")
     @Operation(summary = "获取所有启用分类")
     public Result<List<Category>> listCategories() {
