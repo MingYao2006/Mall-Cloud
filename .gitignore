@@ -1,12 +1,26 @@
-/pom.xml
-/readMe
-/redis主从集群的启动和停止命令.txt
-/项目启动流程.md
+# ---------- 个人 / IDE 配置 ----------
 .feisuan
 .idea/
 .vscode/
+
+# ---------- 构建产物 ----------
 node_modules/
 dist/
 build/
 target/
-/mall-payment-service/src/main/resources/application.yaml
+
+# ---------- 运行时产物（不入库）----------
+logs/
+*.log
+uploads/
+META-INF/
+docker-redis-cluster/redis-data/
+
+# ---------- 本地私密配置（含密钥，禁止入库）----------
+application-local.yml
+application-local.yaml
+
+# ---------- 个人笔记（暂不入库）----------
+/readMe
+/redis主从集群的启动和停止命令.txt
+/项目启动流程.md
