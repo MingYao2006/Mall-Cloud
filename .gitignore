@@ -16,9 +16,16 @@ uploads/
 META-INF/
 docker-redis-cluster/redis-data/
 
+# 本地调试截图与容器临时目录（不入库）
+/work
+
 # ---------- 本地私密配置（含密钥，禁止入库）----------
 application-local.yml
 application-local.yaml
+.env
+**/.env
+!.env.example
+!**/.env.example
 
 # ---------- 个人笔记（暂不入库）----------
 /readMe
