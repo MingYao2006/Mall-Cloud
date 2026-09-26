@@ -51,3 +51,11 @@ spring:
           uri: lb://mall-project
           predicates:
             - Path=/uploads/**
+
+        # ============ AI 导购（Python FastAPI） ============
+        - id: ai-api
+          uri: http://localhost:8095
+          predicates:
+            - Path=/api/ai/**
+          filters:
+            - StripPrefix=2    # /api/ai/chat → /chat

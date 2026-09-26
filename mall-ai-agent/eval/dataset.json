@@ -1,0 +1,432 @@
+[
+  {
+    "id": "q01",
+    "query": "帮我找 200 元以内的耳机",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "耳机"
+    ],
+    "relevant_product_names": [
+      "耳机"
+    ]
+  },
+  {
+    "id": "q02",
+    "query": "适合送女朋友的平价香水",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "香水"
+    ],
+    "relevant_product_names": [
+      "香水",
+      "香氛"
+    ]
+  },
+  {
+    "id": "q03",
+    "query": "有没有蓝牙音箱推荐",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "音箱",
+      "蓝牙"
+    ],
+    "relevant_product_names": [
+      "音箱"
+    ]
+  },
+  {
+    "id": "q04",
+    "query": "查看我的购物车",
+    "expect_tools": [
+      "get_cart"
+    ],
+    "expect_keywords": [],
+    "relevant_product_names": []
+  },
+  {
+    "id": "q05",
+    "query": "现在有哪些优惠券",
+    "expect_tools": [
+      "list_coupons"
+    ],
+    "expect_keywords": [],
+    "relevant_product_names": []
+  },
+  {
+    "id": "q06",
+    "query": "列出商品分类",
+    "expect_tools": [
+      "list_categories"
+    ],
+    "expect_keywords": [],
+    "relevant_product_names": []
+  },
+  {
+    "id": "q07",
+    "query": "100 块以下的手机壳",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "手机壳",
+      "壳"
+    ],
+    "relevant_product_names": [
+      "壳"
+    ]
+  },
+  {
+    "id": "q08",
+    "query": "看看我以前买过什么",
+    "expect_tools": [
+      "list_orders"
+    ],
+    "expect_keywords": [],
+    "relevant_product_names": []
+  },
+  {
+    "id": "q09",
+    "query": "机械键盘 推荐一款",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "键盘"
+    ],
+    "relevant_product_names": [
+      "键盘"
+    ]
+  },
+  {
+    "id": "q10",
+    "query": "运动手表有什么好的",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "手表",
+      "运动"
+    ],
+    "relevant_product_names": [
+      "手表"
+    ]
+  },
+  {
+    "id": "q11",
+    "query": "平价护肤品推荐",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "护肤"
+    ],
+    "relevant_product_names": [
+      "护肤",
+      "面膜",
+      "面霜"
+    ]
+  },
+  {
+    "id": "q12",
+    "query": "笔记本电脑 五千左右",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "笔记本",
+      "电脑"
+    ],
+    "relevant_product_names": [
+      "笔记本",
+      "电脑"
+    ]
+  },
+  {
+    "id": "q13",
+    "query": "儿童玩具 益智",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "玩具"
+    ],
+    "relevant_product_names": [
+      "玩具"
+    ]
+  },
+  {
+    "id": "q14",
+    "query": "夏天穿的短袖 T 恤",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "短袖",
+      "T恤",
+      "T 恤"
+    ],
+    "relevant_product_names": [
+      "短袖",
+      "T恤"
+    ]
+  },
+  {
+    "id": "q15",
+    "query": "咖啡机入门款",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "咖啡"
+    ],
+    "relevant_product_names": [
+      "咖啡"
+    ]
+  },
+  {
+    "id": "q16",
+    "query": "帮我把商品 1 加进购物车",
+    "expect_tools": [
+      "add_to_cart"
+    ],
+    "expect_keywords": [],
+    "relevant_product_names": []
+  },
+  {
+    "id": "q17",
+    "query": "无线鼠标推荐",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "鼠标"
+    ],
+    "relevant_product_names": [
+      "鼠标"
+    ]
+  },
+  {
+    "id": "q18",
+    "query": "保温杯 不锈钢",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "保温杯"
+    ],
+    "relevant_product_names": [
+      "保温杯",
+      "杯"
+    ]
+  },
+  {
+    "id": "q19",
+    "query": "适合办公的显示器",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "显示器"
+    ],
+    "relevant_product_names": [
+      "显示器"
+    ]
+  },
+  {
+    "id": "q20",
+    "query": "祛痘面膜有推荐吗",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "面膜",
+      "祛痘"
+    ],
+    "relevant_product_names": [
+      "面膜"
+    ]
+  },
+  {
+    "id": "q21",
+    "query": "送长辈的保健品",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "保健"
+    ],
+    "relevant_product_names": [
+      "保健"
+    ]
+  },
+  {
+    "id": "q22",
+    "query": "露营帐篷 两人",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "帐篷",
+      "露营"
+    ],
+    "relevant_product_names": [
+      "帐篷"
+    ]
+  },
+  {
+    "id": "q23",
+    "query": "降噪耳机 通勤用",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "耳机",
+      "降噪"
+    ],
+    "relevant_product_names": [
+      "耳机"
+    ]
+  },
+  {
+    "id": "q24",
+    "query": "家用扫地机",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "扫地",
+      "清洁"
+    ],
+    "relevant_product_names": [
+      "扫地",
+      "机器人"
+    ]
+  },
+  {
+    "id": "q25",
+    "query": "瑜伽垫 防滑",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "瑜伽"
+    ],
+    "relevant_product_names": [
+      "瑜伽"
+    ]
+  },
+  {
+    "id": "q26",
+    "query": "把购物车里某件商品数量改成 2",
+    "expect_tools": [
+      "update_cart",
+      "get_cart"
+    ],
+    "expect_keywords": [],
+    "relevant_product_names": []
+  },
+  {
+    "id": "q27",
+    "query": "美妆蛋和粉底液怎么选",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "美妆",
+      "粉底"
+    ],
+    "relevant_product_names": [
+      "粉底",
+      "美妆"
+    ]
+  },
+  {
+    "id": "q28",
+    "query": "宠物猫粮 幼猫",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "猫粮",
+      "猫"
+    ],
+    "relevant_product_names": [
+      "猫粮",
+      "猫"
+    ]
+  },
+  {
+    "id": "q29",
+    "query": "电源线 快充",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "充电",
+      "线"
+    ],
+    "relevant_product_names": [
+      "充电",
+      "数据线"
+    ]
+  },
+  {
+    "id": "q30",
+    "query": "那有没有更便宜的",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [],
+    "relevant_product_names": []
+  },
+  {
+    "id": "q31",
+    "query": "想买个智能手表",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "手表"
+    ],
+    "relevant_product_names": [
+      "手表"
+    ],
+    "retrieval_probe": "智能手表"
+  },
+  {
+    "id": "q32",
+    "query": "通勤路上听歌用的",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "耳机"
+    ],
+    "relevant_product_names": [
+      "耳机"
+    ],
+    "retrieval_probe": "通勤路上听歌用的"
+  },
+  {
+    "id": "q33",
+    "query": "在家做顿简餐要用的电器",
+    "expect_tools": [
+      "search_products"
+    ],
+    "expect_keywords": [
+      "电饭煲",
+      "微波炉"
+    ],
+    "relevant_product_names": [
+      "电饭煲",
+      "微波炉"
+    ],
+    "retrieval_probe": "在家做顿简餐要用的电器"
+  }
+]

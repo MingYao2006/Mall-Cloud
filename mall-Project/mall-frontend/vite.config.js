@@ -26,6 +26,11 @@ export default defineConfig({
             '/uploads': {
                 target: 'http://localhost:9000',
                 changeOrigin: true
+            },
+            // AI 智能导购
+            '/api/ai': {
+                target: 'http://localhost:9000',
+                changeOrigin: true
             }
         }
     }

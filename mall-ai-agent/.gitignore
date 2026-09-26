@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+*.log
+uvicorn.err
+# 上一次尝试留下的损坏虚拟环境（Python 3.14 + cp310 二进制），可删
+venv_broken_py314/
+# 索引语料指纹（运行时状态）
+app/rag/index_manifest.json

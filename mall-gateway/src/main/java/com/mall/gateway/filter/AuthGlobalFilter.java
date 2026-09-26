@@ -57,7 +57,9 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             "/api/c/category/level",
             // 秒杀/优惠券列表（只读）
             "/api/c/seckill/list",
-            "/api/c/coupon/list"
+            "/api/c/coupon/list",
+            // AI 导购健康检查
+            "/api/ai/health"
     );
 
     // C 端白名单（正则）：带路径变量的只读接口

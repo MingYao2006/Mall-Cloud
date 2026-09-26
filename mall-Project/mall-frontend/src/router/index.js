@@ -70,6 +70,12 @@ const routes = [
     name: 'PayResult',
     component: () => import('@/views/PayResult.vue'),
     meta: { title: '支付结果' }
+  },
+  {
+    path: '/ai-guide',
+    name: 'AiGuide',
+    component: () => import('@/views/AiGuide.vue'),
+    meta: { title: 'AI 导购', requiresAuth: true }
   }
 ]
 

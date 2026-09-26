@@ -23,6 +23,10 @@
       <!-- 右侧导航 -->
       <nav class="nav-right">
         <template v-if="userStore.token">
+          <a class="nav-item" @click="$router.push('/ai-guide')">
+            <el-icon :size="18"><ChatDotRound /></el-icon>
+            <span>AI 导购</span>
+          </a>
           <a class="nav-item" @click="$router.push('/coupon')">
             <el-icon :size="18"><Ticket /></el-icon>
             <span>优惠券</span>
@@ -57,7 +61,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
-import { Search, ShoppingCart, Tickets, Ticket, User } from '@element-plus/icons-vue'
+import { Search, ShoppingCart, Tickets, Ticket, User, ChatDotRound } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const userStore = useUserStore()
