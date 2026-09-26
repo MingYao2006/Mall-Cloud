@@ -1,458 +1,952 @@
-<template>
-  <div class="detail-page">
-    <div class="detail-main">
-      <!-- 左侧图片 -->
-      <div class="gallery">
-        <div class="main-img">
-          <img v-if="curImage && !curImage.includes('placeholder')" :src="curImage" :alt="product.name" />
-          <div v-else class="image-placeholder">
-            <span class="placeholder-text">{{ product.name || '商品' }}</span>
-          </div>
-        </div>
-        <div class="thumb-list">
-          <div v-for="(img,i) in images" :key="i" :class="{ active: curImage===img }" @click="curImage=img">
-            <img v-if="!img.includes('placeholder')" :src="img" />
-            <div v-else class="thumb-placeholder">{{ product.name?.charAt(0) || '商' }}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 中间信息 -->
-      <div class="info">
-        <h1>{{ product.name }}</h1>
-        <p class="brand" v-if="product.brand">品牌：{{ product.brand }}</p>
-        <div class="price-box">
-          <span class="price-lg">¥{{ product.price?.toFixed(2) }}</span>
-          <span class="price-original" v-if="product.originalPrice">¥{{ product.originalPrice?.toFixed(2) }}</span>
-          <span class="discount" v-if="product.originalPrice && product.price">
-            {{ Math.round((1 - product.price / product.originalPrice) * 100) }}% OFF
-          </span>
-        </div>
-        <div class="meta">
-          <span>库存：{{ product.stock || 0 }}</span>
-          <span>销量：{{ product.sales || 0 }}</span>
-          <span :class="product.status===1 ? 'on' : 'off'">{{ product.status===1 ? '在售' : '已下架' }}</span>
-        </div>
-        <div class="quantity-row">
-          <span>数量：</span>
-          <el-input-number v-model="quantity" :min="1" :max="Math.max(product.stock||1, 1)" />
-        </div>
-        <div class="actions">
-          <el-button type="primary" size="large" @click="buyNow" :disabled="product.status!==1">立即购买</el-button>
-          <el-button size="large" @click="addCart" :disabled="product.status!==1">
-            <el-icon><ShoppingCart /></el-icon> 加入购物车
-          </el-button>
-        </div>
-      </div>
-
-      <!-- 右侧推荐 -->
-      <div class="side">
-        <h4>热门推荐</h4>
-        <div v-for="p in hotProducts" :key="p.id" class="side-item" @click="$router.push(`/product/${p.id}`)">
-          <img :src="p.mainImage" />
-          <div>
-            <p>{{ p.name }}</p>
-            <p class="price-red">¥{{ p.price?.toFixed(2) }}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 详情 + 评价 Tabs -->
-    <div class="detail-tabs">
-      <el-tabs v-model="activeTab">
-        <el-tab-pane label="商品详情" name="detail">
-          <div class="detail-html" v-html="product.detail || '暂无详情'"></div>
-        </el-tab-pane>
-        <el-tab-pane label="商品评价" name="reviews">
-          <div v-if="comments.length">
-            <div v-for="c in comments" :key="c.id" class="review-item">
-              <div class="review-hd">
-                <el-rate :model-value="c.rating" disabled size="small" />
-                <span class="review-user">{{ c.isAnonymous ? '匿名用户' : '用户' }}</span>
-                <span class="review-time">{{ c.createTime }}</span>
-              </div>
-              <p>{{ c.content }}</p>
-              <div v-if="c.images" class="review-imgs">
-                <img v-for="(img,i) in c.images.split(',')" :key="i" :src="img" />
-              </div>
-            </div>
-          </div>
-          <el-empty v-else description="暂无评价" />
-        </el-tab-pane>
-      </el-tabs>
-    </div>
-  </div>
-</template>
-
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { productApi, cartApi } from '@/api'
-import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
-import { ShoppingCart } from '@element-plus/icons-vue'
+import { productApi, cartApi, commentApi } from '@/api/compat'
+import { formatPrice, formatDateTime } from '@/utils/format'
+import { useUserStore } from '@/stores/user'
+import { flyToCart } from '@/utils/animation'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-const product = ref({})
-const images = ref([])
-const curImage = ref('')
-const quantity = ref(1)
-const activeTab = ref('detail')
-const comments = ref([])
-const hotProducts = ref([])
+const spu = ref(null)
+const related = ref([])
+const loading = ref(false)
+const selectedSkuId = ref(null)
+const num = ref(1)
+const galleryRef = ref(null)
 
-const buyNow = async () => {
-  if (!userStore.token) { ElMessage.warning('请先登录'); router.push('/login'); return }
-  router.push(`/product/${product.value.id}?buy=1&qty=${quantity.value}`)
-}
+/* ---------------- 图片放大镜 ---------------- */
+const ZOOM_LENS_SIZE = 170
+const ZOOM_SCALE = 2.6
+const zoomOn = ref(false)
+const lensPos = ref({ left: 0, top: 0, bgX: 50, bgY: 50 })
 
-const addCart = async () => {
-  if (!userStore.token) { ElMessage.warning('请先登录'); router.push('/login'); return }
-  try {
-    await cartApi.add(product.value.id, quantity.value)
-    ElMessage.success('已加入购物车')
-  } catch (e) { ElMessage.error('加入失败') }
-}
-
-onMounted(async () => {
-  const id = route.params.id
-  try {
-    const res = await productApi.getDetail(id)
-    product.value = res.data || {}
-    const imgs = []
-    if (product.value.mainImage) imgs.push(product.value.mainImage)
-    if (product.value.subImages) imgs.push(...product.value.subImages.split(',').filter(Boolean))
-    // 如果没有图片，使用默认占位图
-    if (imgs.length === 0) {
-      imgs.push(getDefaultImage(product.value.name))
-    }
-    images.value = imgs
-    curImage.value = images.value[0]
-  } catch (e) { /* ignore */ }
-
-  try {
-    const hot = await productApi.getPage(1, 4)
-    hotProducts.value = hot.data?.list || hot.data?.records || []
-  } catch (e) { /* ignore */ }
+const selectedSku = computed(() => {
+  if (!spu.value?.skus?.length) return null
+  return spu.value.skus.find((s) => s.id === selectedSkuId.value) || spu.value.skus[0]
 })
 
-// 生成默认图片标记（使用 placeholder 标记来触发 CSS 占位图）
-const getDefaultImage = (name) => {
-  // 返回一个特殊标记，前端会识别这个标记并显示 CSS 占位图
-  return `placeholder-${name}`
+const displayPrice = computed(() => selectedSku.value?.price ?? spu.value?.minPrice)
+
+const stockText = computed(() => {
+  const stock = selectedSku.value?.stock
+  if (stock == null) return '现货充足'
+  if (stock <= 0) return '暂时缺货'
+  if (stock <= 10) return `仅剩 ${stock} 件`
+  return '现货充足'
+})
+
+const isOffShelf = computed(() => spu.value?.status === 0)
+
+const services = [
+  { icon: 'Goods', text: '正品保障' },
+  { icon: 'RefreshLeft', text: '7天无理由' },
+  { icon: 'Van', text: '极速发货' }
+]
+
+async function load() {
+  loading.value = true
+  try {
+    spu.value = await productApi.spuDetail(route.params.id)
+    if (spu.value?.skus?.length) {
+      const firstEnabled = spu.value.skus.find((s) => s.enable) || spu.value.skus[0]
+      selectedSkuId.value = firstEnabled.id
+    }
+    num.value = 1
+    loadRelated()
+    loadComments()
+  } catch (e) {
+    spu.value = null
+  } finally {
+    loading.value = false
+  }
 }
+
+/* ---------------- 图片放大镜 ---------------- */
+function handleZoomEnter() {
+  if (spu.value?.mainImage) zoomOn.value = true
+}
+
+function handleZoomLeave() {
+  zoomOn.value = false
+}
+
+function handleZoomMove(event) {
+  const el = event.currentTarget
+  if (!el || !spu.value?.mainImage) return
+
+  const rect = el.getBoundingClientRect()
+  const px = event.clientX - rect.left
+  const py = event.clientY - rect.top
+  const half = ZOOM_LENS_SIZE / 2
+
+  // 圆窗位置贴边时保持完整，放大内容仍按鼠标真实位置换算
+  lensPos.value = {
+    left: Math.max(half, Math.min(rect.width - half, px)),
+    top: Math.max(half, Math.min(rect.height - half, py)),
+    bgX: (px / rect.width) * 100,
+    bgY: (py / rect.height) * 100
+  }
+}
+
+const lensStyle = computed(() => {
+  const img = spu.value?.mainImage
+  if (!img) return {}
+  return {
+    left: `${lensPos.value.left}px`,
+    top: `${lensPos.value.top}px`,
+    backgroundImage: `url("${img}")`,
+    backgroundSize: `${ZOOM_SCALE * 100}% ${ZOOM_SCALE * 100}%`,
+    backgroundPosition: `${lensPos.value.bgX}% ${lensPos.value.bgY}%`
+  }
+})
+
+async function loadRelated() {
+  try {
+    const data = await productApi.spuPage({ pageNum: 1, pageSize: 6 })
+    const list = data?.records || []
+    related.value = list
+      .filter((g) => String(g.id) !== String(route.params.id))
+      .slice(0, 3)
+  } catch (e) {
+    related.value = []
+  }
+}
+
+/* ---------------- 商品评价 ---------------- */
+const comments = ref([])
+const commentLoading = ref(false)
+const submitting = ref(false)
+const commentForm = ref({ rating: 5, content: '', images: '' })
+
+const avgRating = computed(() => {
+  if (!comments.value.length) return '0.0'
+  return (comments.value.reduce((s, c) => s + (c.rating || 0), 0) / comments.value.length).toFixed(1)
+})
+
+async function loadComments() {
+  commentLoading.value = true
+  try {
+    const res = await commentApi.getByProduct(route.params.id)
+    comments.value = res.data || []
+  } catch (e) {
+    comments.value = []
+  } finally {
+    commentLoading.value = false
+  }
+}
+
+async function submitComment() {
+  if (!userStore.isLogin) {
+    ElMessage.warning('请先登录后再评价')
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  if (!commentForm.value.content.trim()) {
+    ElMessage.warning('请填写评价内容')
+    return
+  }
+  const userId = userStore.userInfo?.id
+  if (!userId) {
+    ElMessage.warning('用户信息缺失，请重新登录')
+    return
+  }
+  submitting.value = true
+  try {
+    await commentApi.add({
+      productId: Number(route.params.id),
+      userId,
+      orderId: null,
+      content: commentForm.value.content.trim(),
+      rating: commentForm.value.rating,
+      images: commentForm.value.images.trim() || null   // 逗号分隔字符串，不是 JSON 数组
+    })
+    ElMessage.success('评价已提交，审核通过后展示')
+    commentForm.value = { rating: 5, content: '', images: '' }
+    loadComments()
+  } finally {
+    submitting.value = false
+  }
+}
+
+function selectSku(sku) {
+  if (!sku.enable) return
+  selectedSkuId.value = sku.id
+  num.value = 1
+}
+
+function goGoods(id) {
+  router.push(`/product/${id}`)
+}
+
+async function addToCart() {
+  if (isOffShelf.value) {
+    ElMessage.warning('该商品已下架')
+    return
+  }
+  if (!userStore.isLogin) {
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  if (!selectedSku.value) {
+    ElMessage.warning('请选择规格')
+    return
+  }
+  if (!selectedSku.value.enable) {
+    ElMessage.warning('该规格暂时缺货')
+    return
+  }
+  try {
+    await cartApi.add({ skuId: selectedSku.value.id, num: num.value })
+    flyToCart(galleryRef.value, spu.value?.mainImage)
+    ElMessage.success('已加入购物车')
+  } catch (e) {
+    /* 错误提示由响应拦截器统一处理 */
+  }
+}
+
+async function buyNow() {
+  if (isOffShelf.value) {
+    ElMessage.warning('该商品已下架')
+    return
+  }
+  if (!userStore.isLogin) {
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  if (!selectedSku.value) {
+    ElMessage.warning('请选择规格')
+    return
+  }
+  try {
+    await cartApi.add({ skuId: selectedSku.value.id, num: num.value })
+    flyToCart(galleryRef.value, spu.value?.mainImage)
+    router.push('/cart')
+  } catch (e) {
+    /* 错误提示由响应拦截器统一处理 */
+  }
+}
+
+onMounted(load)
+
+/* 同一组件内切换商品时重新加载 */
+watch(
+  () => route.params.id,
+  (id) => {
+    if (id) load()
+  }
+)
 </script>
+
+<template>
+  <div class="container detail-page">
+    <!-- 面包屑 -->
+    <nav class="crumbs">
+      <span class="crumb" @click="router.push('/')">首页</span>
+      <el-icon :size="12"><ArrowRight /></el-icon>
+      <span class="crumb current">{{ spu?.name || '商品详情' }}</span>
+    </nav>
+
+    <div v-if="loading" class="detail-main">
+      <div class="gallery skeleton"></div>
+      <div class="detail-info">
+        <div class="sk-line" style="width: 40%; height: 18px"></div>
+        <div class="sk-line" style="width: 80%; height: 26px; margin-top: 16px"></div>
+        <div class="sk-line" style="width: 60%; height: 14px; margin-top: 14px"></div>
+        <div class="sk-block" style="margin-top: 26px"></div>
+      </div>
+    </div>
+
+    <div v-else-if="spu" class="detail-main">
+      <!-- 图片 -->
+      <div ref="galleryRef" class="gallery">
+        <div
+          class="gallery-main"
+          @mouseenter="handleZoomEnter"
+          @mouseleave="handleZoomLeave"
+          @mousemove="handleZoomMove"
+        >
+          <img v-if="spu.mainImage" :src="spu.mainImage" :alt="spu.name" />
+          <div v-else class="img-placeholder">{{ spu.name.slice(0, 1) }}</div>
+
+          <div v-if="zoomOn" class="zoom-lens" :style="lensStyle"></div>
+        </div>
+
+        <p v-if="spu.mainImage" class="zoom-tip">
+          <el-icon :size="12"><Search /></el-icon>
+          鼠标移到图片上可放大查看
+        </p>
+      </div>
+
+      <!-- 信息 -->
+      <div class="detail-info">
+        <span class="brand-tag">{{ spu.brandName || 'Mall-Cloud 严选' }}</span>
+        <h1 class="name">{{ spu.name }}</h1>
+        <p class="caption">{{ spu.caption }}</p>
+
+        <div v-if="isOffShelf" class="offshelf-notice">
+          <el-icon :size="16"><WarningFilled /></el-icon>
+          <span>该商品已下架，暂时无法购买</span>
+        </div>
+
+        <div class="price-card">
+          <div class="price-left">
+            <span class="price-label">价格</span>
+            <span class="price-value price">{{ formatPrice(displayPrice) }}</span>
+          </div>
+          <span class="stock-pill" :class="{ danger: isOffShelf || (selectedSku && selectedSku.stock <= 10) }">
+            {{ isOffShelf ? '已下架' : stockText }}
+          </span>
+        </div>
+
+        <ul class="service-list">
+          <li v-for="s in services" :key="s.text">
+            <el-icon :size="14"><component :is="s.icon" /></el-icon>
+            <span>{{ s.text }}</span>
+          </li>
+        </ul>
+
+        <div v-if="spu.skus && spu.skus.length > 1" class="field">
+          <span class="field-label">规格</span>
+          <div class="sku-list">
+            <button
+              v-for="s in spu.skus"
+              :key="s.id"
+              type="button"
+              class="sku-item"
+              :class="{ active: s.id === selectedSkuId, disabled: !s.enable }"
+              @click="selectSku(s)"
+            >
+              {{ s.title }}
+            </button>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="field-label">数量</span>
+          <el-input-number
+            v-model="num"
+            :min="1"
+            :max="selectedSku?.stock || 1"
+            :disabled="isOffShelf || !selectedSku || selectedSku.stock <= 0"
+          />
+        </div>
+
+        <div class="buy-row">
+          <button class="btn-brand btn-cart" :disabled="isOffShelf" @click="addToCart">
+            <el-icon :size="16"><ShoppingCart /></el-icon>
+            {{ isOffShelf ? '已下架' : '加入购物车' }}
+          </button>
+          <button class="btn-buy" :disabled="isOffShelf" @click="buyNow">{{ isOffShelf ? '已下架' : '立即购买' }}</button>
+        </div>
+      </div>
+
+      <!-- 相关推荐 -->
+      <aside v-if="related.length" class="related">
+        <h3 class="related-title">相关推荐</h3>
+        <div
+          v-for="r in related"
+          :key="r.id"
+          class="related-item"
+          @click="goGoods(r.id)"
+        >
+          <div class="related-img">
+            <img v-if="r.mainImage" :src="r.mainImage" :alt="r.name" loading="lazy" />
+            <span v-else>{{ r.name.slice(0, 1) }}</span>
+          </div>
+          <div class="related-info">
+            <p class="related-name" :title="r.name">{{ r.name }}</p>
+            <p class="price related-price">{{ formatPrice(r.minPrice) }}</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- 商品评价 -->
+    <section class="comment-section card">
+      <h3 class="comment-title">
+        商品评价
+        <span class="comment-count">{{ comments.length }} 条</span>
+        <span v-if="comments.length" class="comment-avg">平均 {{ avgRating }} 分</span>
+      </h3>
+
+      <div v-loading="commentLoading">
+        <el-empty v-if="!comments.length" description="暂无评价" :image-size="80" />
+        <ul v-else class="comment-list">
+          <li v-for="c in comments" :key="c.id" class="comment-item">
+            <div class="comment-head">
+              <span class="comment-user">用户{{ c.userId }}</span>
+              <el-rate :model-value="c.rating" disabled size="small" />
+              <span class="comment-time">{{ formatDateTime(c.createTime) }}</span>
+            </div>
+            <p class="comment-content">{{ c.content }}</p>
+            <div v-if="c.images" class="comment-images">
+              <img v-for="(img, i) in String(c.images).split(',').filter(Boolean)" :key="i" :src="img" loading="lazy" />
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- 下架商品不给评价入口，复用 isOffShelf -->
+      <div v-if="!isOffShelf" class="comment-form">
+        <el-rate v-model="commentForm.rating" />
+        <el-input v-model="commentForm.content" type="textarea" :rows="3" maxlength="300" show-word-limit placeholder="说说使用感受…" />
+        <el-input v-model="commentForm.images" placeholder="图片 URL，多个用英文逗号分隔（可留空）" />
+        <button class="btn-brand" :disabled="submitting" @click="submitComment">
+          {{ submitting ? '提交中…' : '发表评价' }}
+        </button>
+      </div>
+    </section>
+
+    <!-- 商品详情 -->
+    <section v-if="spu?.detail" class="desc card">
+      <h3 class="desc-title">商品详情</h3>
+      <p class="desc-body">{{ spu.detail }}</p>
+    </section>
+
+    <el-empty v-if="!loading && !spu" description="商品不存在或已下架">
+      <el-button type="primary" round @click="router.push('/')">回到首页</el-button>
+    </el-empty>
+  </div>
+</template>
 
 <style scoped>
 .detail-page {
-  max-width: 1200px;
-  margin: var(--spacing-xl) auto;
-  padding: 0 var(--spacing-md);
+  padding-top: 22px;
 }
 
+/* ---------------- 面包屑 ---------------- */
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.crumb {
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.crumb:hover {
+  color: var(--brand-500);
+}
+
+.crumb.current {
+  color: var(--text-body);
+  cursor: default;
+}
+
+.crumb.current:hover {
+  color: var(--text-body);
+}
+
+/* ---------------- 主区域 ---------------- */
 .detail-main {
   display: flex;
-  gap: var(--spacing-lg);
-  background: var(--color-white);
-  padding: var(--spacing-lg);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+  align-items: flex-start;
+  gap: 28px;
 }
 
-/* 图片画廊 */
 .gallery {
-  width: 480px;
+  width: 396px;
   flex-shrink: 0;
 }
 
-.main-img {
-  width: 100%;
-  height: 480px;
+.gallery-main {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: var(--color-bg);
+  cursor: zoom-in;
 }
 
-.main-img img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-
-/* 主图占位符 */
-.main-img .image-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
-  padding: var(--spacing-lg);
-}
-
-.main-img .placeholder-text {
-  font-size: 24px;
-  font-weight: 600;
-  color: #666;
-  text-align: center;
-  word-break: break-all;
-  line-height: 1.4;
-}
-
-.thumb-list {
-  display: flex;
-  gap: var(--spacing-xs);
-  margin-top: var(--spacing-sm);
-}
-
-.thumb-list div {
-  width: 64px;
-  height: 64px;
-  border: 2px solid transparent;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-
-.thumb-list div.active {
-  border-color: var(--color-accent);
-}
-
-.thumb-list img {
+.gallery-main img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-/* 缩略图占位符 */
-.thumb-placeholder {
-  width: 100%;
-  height: 100%;
+/* 放大镜圆窗 */
+.zoom-lens {
+  position: absolute;
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 32px rgba(31, 42, 71, 0.24);
+  background-repeat: no-repeat;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.zoom-tip {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
-  font-size: 24px;
-  font-weight: 600;
-  color: #999;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text-hint);
 }
 
-/* 商品信息 */
-.info {
+.img-placeholder {
+  font-size: 86px;
+  font-weight: 500;
+  color: #cdd5e8;
+}
+
+.detail-info {
   flex: 1;
+  min-width: 0;
 }
 
-.info h1 {
+.brand-tag {
+  display: inline-block;
+  padding: 4px 12px;
+  margin-bottom: 14px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  font-size: 12px;
+  color: var(--brand-500);
+}
+
+.name {
   font-size: 24px;
-  font-weight: 600;
-  margin-bottom: var(--spacing-sm);
-  color: var(--color-primary);
+  font-weight: 500;
   line-height: 1.4;
+  letter-spacing: -0.3px;
+  color: var(--text-title);
+  margin-bottom: 10px;
 }
 
-.brand {
+.caption {
   font-size: 14px;
-  color: var(--color-text-light);
-  margin-bottom: var(--spacing-md);
+  line-height: 1.7;
+  color: var(--text-muted);
+  margin-bottom: 20px;
 }
 
-.price-box {
-  background: var(--color-bg);
-  padding: var(--spacing-md);
-  border-radius: var(--radius-sm);
-  margin-bottom: var(--spacing-md);
+.price-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  margin-bottom: 18px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #eef1fd 0%, #f3e9fa 100%);
+}
+
+.price-left {
   display: flex;
   align-items: baseline;
-  gap: var(--spacing-sm);
+  gap: 12px;
 }
 
-.price-lg {
-  font-size: 32px;
-  font-weight: 700;
+.price-label {
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
-.price-original {
-  font-size: 16px;
+.price-value {
+  font-size: 30px;
+  letter-spacing: -0.5px;
 }
 
-.discount {
-  background: var(--color-accent);
-  color: var(--color-white);
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
+.stock-pill {
+  padding: 5px 14px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.85);
   font-size: 12px;
-  font-weight: 600;
+  color: var(--brand-500);
 }
 
-.meta {
-  display: flex;
-  gap: var(--spacing-md);
-  color: var(--color-text-light);
-  margin-bottom: var(--spacing-md);
-  font-size: 14px;
+.stock-pill.danger {
+  color: var(--accent-500);
 }
 
-.meta .on { color: var(--color-success); }
-.meta .off { color: var(--color-danger); }
-
-.quantity-row {
+.offshelf-notice {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
-  font-size: 14px;
-  color: var(--color-text);
-}
-
-.actions {
-  display: flex;
-  gap: var(--spacing-sm);
-}
-
-.actions .el-button {
-  flex: 1;
-  height: 48px;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-/* 侧边推荐 */
-.side {
-  width: 220px;
-  flex-shrink: 0;
-}
-
-.side h4 {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: var(--spacing-sm);
-  color: var(--color-primary);
-}
-
-.side-item {
-  display: flex;
-  gap: var(--spacing-xs);
-  cursor: pointer;
-  padding: var(--spacing-xs) 0;
-  border-bottom: 1px solid var(--color-border);
-  transition: all 0.2s;
-}
-
-.side-item:last-child {
-  border-bottom: none;
-}
-
-.side-item:hover {
-  transform: translateX(4px);
-}
-
-.side-item img {
-  width: 60px;
-  height: 60px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-
-.side-item p {
+  gap: 8px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  border: 1px solid #ffd9cf;
   font-size: 13px;
-  color: var(--color-text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  width: 130px;
-  margin-bottom: 4px;
+  color: var(--accent-500);
 }
 
-/* Tabs */
-.detail-tabs {
-  background: var(--color-white);
-  margin-top: var(--spacing-md);
-  padding: var(--spacing-md);
-  border-radius: var(--radius-md);
+.service-list {
+  display: flex;
+  gap: 22px;
+  margin-bottom: 24px;
+}
+
+.service-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.field {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.field-label {
+  width: 46px;
+  flex-shrink: 0;
+  padding-top: 9px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.sku-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sku-item {
+  padding: 8px 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text-body);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sku-item:hover {
+  border-color: var(--brand-400);
+  color: var(--brand-500);
+}
+
+.sku-item.active {
+  border-color: var(--brand-500);
+  color: var(--brand-500);
+  background: var(--brand-soft);
+  box-shadow: 0 0 0 1px var(--brand-500) inset;
+}
+
+.sku-item.disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.buy-row {
+  display: flex;
+  gap: 14px;
+  margin-top: 26px;
+}
+
+.btn-cart {
+  padding: 13px 30px;
+  font-size: 15px;
+}
+
+.btn-buy {
+  padding: 13px 32px;
+  border: 1.5px solid var(--brand-500);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--brand-500);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.16s ease;
+}
+
+.btn-buy:hover {
+  background: var(--brand-soft);
+}
+
+.btn-buy:active {
+  transform: scale(0.97);
+}
+
+.btn-cart:disabled,
+.btn-buy:disabled {
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
+.btn-cart:disabled:hover,
+.btn-buy:disabled:hover {
+  background: var(--surface-sunken);
+}
+
+/* ---------------- 相关推荐 ---------------- */
+.related {
+  width: 228px;
+  flex-shrink: 0;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
 
-.detail-html {
-  padding: var(--spacing-md) 0;
-  line-height: 1.8;
+.related-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-title);
+  margin-bottom: 16px;
 }
 
-/* 评价 */
-.review-item {
-  padding: var(--spacing-sm) 0;
-  border-bottom: 1px solid var(--color-border);
+.related-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
-.review-item:last-child {
+.related-item + .related-item {
+  margin-top: 6px;
+}
+
+.related-item:hover {
+  background: var(--surface-sunken);
+  transform: translateX(3px);
+}
+
+.related-img {
+  width: 58px;
+  height: 58px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: var(--surface-sunken);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-size: 20px;
+  color: #cdd5e8;
+}
+
+.related-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.related-info {
+  min-width: 0;
+}
+
+.related-name {
+  font-size: 13px;
+  color: var(--text-title);
+  margin-bottom: 5px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.related-price {
+  font-size: 14px;
+}
+
+/* ---------------- 商品评价 ---------------- */
+.comment-section {
+  margin-top: 34px;
+  padding: 28px 30px;
+}
+
+.comment-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-title);
+  margin-bottom: 20px;
+}
+
+.comment-count {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.comment-avg {
+  font-size: 12px;
+  color: var(--brand-500);
+}
+
+.comment-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.comment-item {
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.comment-item:last-child {
   border-bottom: none;
 }
 
-.review-hd {
+.comment-head {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-xs);
+  gap: 12px;
+  margin-bottom: 10px;
 }
 
-.review-user {
+.comment-user {
   font-size: 13px;
-  color: var(--color-text-light);
+  font-weight: 500;
+  color: var(--text-title);
 }
 
-.review-time {
-  font-size: 12px;
-  color: var(--color-text-lighter);
+.comment-time {
   margin-left: auto;
+  font-size: 12px;
+  color: var(--text-hint);
 }
 
-.review-item > p {
+.comment-content {
   font-size: 14px;
-  color: var(--color-text);
-  line-height: 1.6;
-  margin-bottom: var(--spacing-xs);
+  line-height: 1.7;
+  color: var(--text-body);
+  white-space: pre-wrap;
 }
 
-.review-imgs {
+.comment-images {
   display: flex;
-  gap: var(--spacing-xs);
-  margin-top: var(--spacing-xs);
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
 }
 
-.review-imgs img {
-  width: 80px;
-  height: 80px;
+.comment-images img {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
   object-fit: cover;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: transform 0.2s;
+  background: var(--surface-sunken);
 }
 
-.review-imgs img:hover {
-  transform: scale(1.05);
+.comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 22px;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-sunken);
 }
 
-/* 响应式 */
-@media (max-width: 968px) {
+.comment-form .btn-brand {
+  align-self: flex-start;
+  padding: 11px 30px;
+}
+
+/* ---------------- 商品详情 ---------------- */
+.desc {
+  margin-top: 34px;
+  padding: 28px 30px;
+}
+
+.desc-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-title);
+  margin-bottom: 16px;
+}
+
+.desc-body {
+  font-size: 14px;
+  line-height: 1.9;
+  color: var(--text-body);
+  white-space: pre-wrap;
+}
+
+/* ---------------- 骨架屏 ---------------- */
+.skeleton {
+  aspect-ratio: 1 / 1;
+  border-radius: 22px;
+  background: linear-gradient(90deg, #eef1f8 25%, #f7f9fd 37%, #eef1f8 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+.sk-line,
+.sk-block {
+  border-radius: 8px;
+  background: linear-gradient(90deg, #eef1f8 25%, #f7f9fd 37%, #eef1f8 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+.sk-line {
+  height: 16px;
+}
+
+.sk-block {
+  height: 96px;
+  border-radius: 18px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+/* ---------------- 响应式 ---------------- */
+@media (max-width: 1080px) {
+  .related {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
   .detail-main {
     flex-direction: column;
   }
-  
   .gallery {
     width: 100%;
   }
-  
-  .side {
-    display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .sk-line,
+  .sk-block {
+    animation: none;
   }
 }
 </style>

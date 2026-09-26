@@ -2,18 +2,18 @@
   /* 主色 - 深灰/黑白 */
   --color-primary: #1a1a1a;
   --color-secondary: #333;
-  --color-text: #2c2c2c;
-  --color-text-light: #666;
-  --color-text-lighter: #999;
-  --color-border: #e8e8e8;
+  --color-text: #4a5578;
+  --color-text-light: #6b769a;
+  --color-text-lighter: #a8b0c8;
+  --color-border: #e8ebf5;
   --color-bg: #fafafa;
   --color-white: #fff;
   
   /* 强调色 - 低饱和度橙 */
-  --color-accent: #e8734a;
-  --color-accent-hover: #d4623a;
-  --color-accent-light: rgba(232, 115, 74, 0.08);
-  --color-accent-shadow: rgba(232, 115, 74, 0.15);
+  --color-accent: #ff5a3c;
+  --color-accent-hover: #e6452a;
+  --color-accent-light: rgba(255, 90, 60, 0.08);
+  --color-accent-shadow: rgba(255, 90, 60, 0.18);
   
   /* 成功/警告/危险 */
   --color-success: #4a9e7a;

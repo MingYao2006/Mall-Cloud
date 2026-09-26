@@ -16,7 +16,7 @@
               <input type="file" ref="fileRef" hidden accept="image/*" @change="handleUpload" />
             </div>
             <h3 class="user-name">{{ user.nickname || user.username }}</h3>
-            <p class="user-phone">{{ user.phone || '未绑定手机' }}</p>
+            <p class="user-phone">{{ user.phone ? maskPhone(user.phone) : '未绑定手机' }}</p>
           </div>
           
           <nav class="side-nav">
@@ -48,7 +48,11 @@
                 <el-input v-model="infoForm.email" placeholder="请输入邮箱" />
               </el-form-item>
               <el-form-item label="手机号">
-                <el-input v-model="infoForm.phone" maxlength="11" placeholder="请输入11位手机号" />
+                <template v-if="user.phone">
+                  <span class="phone-bound">{{ maskPhone(user.phone) }}</span>
+                  <el-button link type="primary" @click="openBindDialog">更换</el-button>
+                </template>
+                <el-button v-else type="primary" plain @click="openBindDialog">绑定手机号</el-button>
               </el-form-item>
               <el-form-item label="性别">
                 <el-radio-group v-model="infoForm.gender">
@@ -87,12 +91,33 @@
           </div>
         </div>
       </div>
+
+    <!-- 绑定手机号弹窗 -->
+    <el-dialog v-model="bindDialogVisible" title="绑定手机号" width="420px" destroy-on-close>
+      <el-form label-width="70px">
+        <el-form-item label="手机号">
+          <el-input v-model="bindForm.phone" maxlength="11" placeholder="请输入11位手机号" />
+        </el-form-item>
+        <el-form-item label="验证码">
+          <div class="code-row">
+            <el-input v-model="bindForm.code" maxlength="6" placeholder="请输入验证码" />
+            <el-button type="primary" plain :disabled="bindCountdown > 0" @click="sendBindCode">
+              {{ bindCountdown > 0 ? bindCountdown + 's' : '获取验证码' }}
+            </el-button>
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="bindDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="bindSaving" @click="confirmBind">确认绑定</el-button>
+      </template>
+    </el-dialog>
     </div>
-  </div>
+    </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { userApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
@@ -105,28 +130,74 @@ const pwdSaving = ref(false)
 const fileRef = ref(null)
 const user = ref({})
 
-const infoForm = reactive({ nickname: '', email: '', phone: '', gender: 0 })
+const infoForm = reactive({ nickname: '', email: '', gender: 0 })
 const pwdForm = reactive({ oldPassword: '', newPassword: '', confirm: '' })
+
+// 绑定手机号弹窗状态
+const bindDialogVisible = ref(false)
+const bindSaving = ref(false)
+const bindCountdown = ref(0)
+let bindTimer = null
+const bindForm = reactive({ phone: '', code: '' })
+
+const maskPhone = (phone) => phone ? phone.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2') : ''
 
 const loadUser = async () => {
   try {
     const res = await userApi.getInfo()
     user.value = res.data || {}
-    Object.assign(infoForm, { nickname: user.value.nickname, email: user.value.email, phone: user.value.phone, gender: user.value.gender || 0 })
+    Object.assign(infoForm, { nickname: user.value.nickname, email: user.value.email, gender: user.value.gender || 0 })
   } catch (e) { /* ignore */ }
 }
 
 const saveInfo = async () => {
-  if (infoForm.phone && !/^1[3-9]\d{9}$/.test(infoForm.phone)) {
-    ElMessage.warning('请输入正确的11位手机号')
-    return
-  }
   saving.value = true
   try {
-    await userStore.updateUserInfo({ nickname: infoForm.nickname, email: infoForm.email, phone: infoForm.phone, gender: infoForm.gender })
+    await userStore.updateUserInfo({ nickname: infoForm.nickname, email: infoForm.email, gender: infoForm.gender })
     ElMessage.success('已保存')
   } catch (e) { ElMessage.error('保存失败') }
   finally { saving.value = false }
+}
+
+const openBindDialog = () => {
+  bindForm.phone = ''
+  bindForm.code = ''
+  bindDialogVisible.value = true
+}
+
+const sendBindCode = async () => {
+  if (!/^1[3-9]\d{9}$/.test(bindForm.phone)) {
+    ElMessage.warning('请输入正确的11位手机号')
+    return
+  }
+  try {
+    await userApi.sendCode(bindForm.phone)
+    ElMessage.success('验证码已发送')
+    bindCountdown.value = 60
+    bindTimer = setInterval(() => {
+      bindCountdown.value -= 1
+      if (bindCountdown.value <= 0) clearInterval(bindTimer)
+    }, 1000)
+  } catch (e) { /* 错误已在拦截器提示 */ }
+}
+
+const confirmBind = async () => {
+  if (!/^1[3-9]\d{9}$/.test(bindForm.phone)) {
+    ElMessage.warning('请输入正确的11位手机号')
+    return
+  }
+  if (!bindForm.code) {
+    ElMessage.warning('请输入验证码')
+    return
+  }
+  bindSaving.value = true
+  try {
+    await userStore.bindPhone(bindForm.phone, bindForm.code)
+    ElMessage.success('手机号绑定成功')
+    bindDialogVisible.value = false
+    await loadUser()
+  } catch (e) { /* 错误已在拦截器提示 */ }
+  finally { bindSaving.value = false }
 }
 
 const savePwd = async () => {
@@ -155,6 +226,10 @@ const handleUpload = async (e) => {
 }
 
 onMounted(() => loadUser())
+
+onUnmounted(() => {
+  if (bindTimer) clearInterval(bindTimer)
+})
 </script>
 
 <style scoped>
@@ -294,6 +369,27 @@ onMounted(() => loadUser())
 
 .profile-form .el-input {
   max-width: 400px;
+}
+
+.phone-bound {
+  margin-right: 8px;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.code-row {
+  display: flex;
+  gap: 10px;
+  width: 400px;
+  max-width: 100%;
+}
+
+.code-row .el-input {
+  flex: 1;
+}
+
+.code-row .el-button {
+  flex-shrink: 0;
 }
 
 /* 响应式 */

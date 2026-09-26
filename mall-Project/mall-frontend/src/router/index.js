@@ -24,6 +24,12 @@ const routes = [
     meta: { title: '注册' }
   },
   {
+    path: '/category',
+    name: 'Category',
+    component: () => import('@/views/Category.vue'),
+    meta: { title: '全部分类' }
+  },
+  {
     path: '/product/:id',
     name: 'ProductDetail',
     component: () => import('@/views/ProductDetail.vue'),
@@ -69,7 +75,13 @@ const routes = [
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
+  // 切页回到顶部；带 hash 则滚到对应锚点（避开固定顶栏）
+  scrollBehavior(to, from, savedPosition) {
+    if (to.hash) return { el: to.hash, behavior: 'smooth', top: 88 }
+    if (savedPosition) return savedPosition
+    return { top: 0 }
+  }
 })
 
 router.beforeEach((to, from, next) => {
