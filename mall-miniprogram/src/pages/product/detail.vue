@@ -6,6 +6,7 @@
       <image class="banner" :src="imageUrl(product.mainImage)" mode="aspectFill" />
 
       <view class="block">
+        <view v-if="isOffShelf" class="offshelf-tag">该商品已下架</view>
         <text class="price">￥{{ formatPrice(product.price) }}</text>
         <text v-if="product.originalPrice" class="origin-price">￥{{ formatPrice(product.originalPrice) }}</text>
         <text class="name">{{ product.name }}</text>
@@ -21,8 +22,8 @@
       </view>
 
       <view class="footer">
-        <view class="footer-btn ghost" @tap="addToCart">加入购物车</view>
-        <view class="footer-btn primary" @tap="buyNow">立即购买</view>
+        <view class="footer-btn ghost" :class="{ disabled: isOffShelf }" @tap="addToCart">{{ isOffShelf ? '已下架' : '加入购物车' }}</view>
+        <view class="footer-btn primary" :class="{ disabled: isOffShelf }" @tap="buyNow">{{ isOffShelf ? '已下架' : '立即购买' }}</view>
       </view>
     </template>
 
@@ -31,7 +32,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { productApi } from '@/api/product'
 import { useCartStore } from '@/store/cart'
@@ -41,6 +42,7 @@ import { resolveFileUrl } from '@/utils/request'
 
 const product = ref(null)
 const loading = ref(true)
+const isOffShelf = computed(() => product.value?.status === 0)
 
 const cartStore = useCartStore()
 const userStore = useUserStore()
@@ -64,6 +66,10 @@ async function loadProduct() {
 }
 
 async function addToCart() {
+  if (isOffShelf.value) {
+    uni.showToast({ title: '该商品已下架', icon: 'none' })
+    return
+  }
   if (!userStore.ensureLogin()) {
     return
   }
@@ -72,6 +78,10 @@ async function addToCart() {
 }
 
 function buyNow() {
+  if (isOffShelf.value) {
+    uni.showToast({ title: '该商品已下架', icon: 'none' })
+    return
+  }
   if (!userStore.ensureLogin()) {
     return
   }
@@ -106,6 +116,16 @@ onLoad((options) => {
   margin-bottom: 16rpx;
   display: flex;
   flex-direction: column;
+}
+
+.offshelf-tag {
+  align-self: flex-start;
+  margin-bottom: 12rpx;
+  padding: 6rpx 18rpx;
+  border-radius: 999rpx;
+  background-color: #fff0ec;
+  color: #e93b3d;
+  font-size: 24rpx;
 }
 
 .price {
@@ -178,6 +198,10 @@ onLoad((options) => {
 .footer-btn.primary {
   background-color: #e93b3d;
   color: #ffffff;
+}
+
+.footer-btn.disabled {
+  opacity: 0.5;
 }
 
 .tip {
