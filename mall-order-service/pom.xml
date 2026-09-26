@@ -148,6 +148,27 @@
 
     <build>
         <plugins>
+            <!-- Spring Boot Maven 插件：打包可执行 jar。缺少它会打出无主清单的薄 jar，无法用 java -jar 启动 -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.mall.order.MallOrderApplication</mainClass>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <!-- Maven 编译插件：必须显式声明 Lombok 注解处理器 -->
             <!-- JDK 23 起 javac 不再从 classpath 自动发现注解处理器，漏配会导致 @Data/@Slf4j 等彻底失效 -->
             <plugin>
