@@ -81,6 +81,14 @@ public interface UserServiceFeignClient {
     Result<Map<String, Object>> health();
 
     /**
+     * 绑定手机号（需短信验证码，已登录用户专用）
+     */
+    @PostMapping("/phone/bind")
+    Result<Object> bindPhone(@RequestParam("phone") String phone,
+                             @RequestParam("code") String code,
+                             @RequestHeader("Authorization") String token);
+
+    /**
      * 验证码登录
      */
     @PostMapping("/login/code")

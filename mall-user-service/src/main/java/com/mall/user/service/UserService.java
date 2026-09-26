@@ -98,8 +98,17 @@ public class UserService {
         String encryptedPassword = passwordEncoder.encode(user.getPassword());
         user.setPassword(encryptedPassword);
 
-        // 4. 将空字符串转为 null，避免唯一约束冲突
-        if (user.getPhone() != null && user.getPhone().trim().isEmpty()) {
+        // 4. 手机号可选填：为空转 null；填写则校验格式并查重（避免撞 uk_phone 唯一键）
+        if (user.getPhone() != null && !user.getPhone().trim().isEmpty()) {
+            String phone = user.getPhone().trim();
+            if (!ReUtil.isMatch("^1[3-9]\\d{9}$", phone)) {
+                return Result.error(400, "手机号格式不正确");
+            }
+            if (userMapper.findByPhone(phone) != null) {
+                return Result.error(400, "手机号已被其他用户使用");
+            }
+            user.setPhone(phone);
+        } else {
             user.setPhone(null);
         }
         if (user.getEmail() != null && user.getEmail().trim().isEmpty()) {
@@ -325,9 +334,7 @@ public class UserService {
         }
 
         // 2. 空字符串转 null，避免唯一约束冲突
-        if (user.getPhone() != null && user.getPhone().trim().isEmpty()) {
-            user.setPhone(null);
-        }
+        //    注意：手机号不再允许通过本接口修改，必须走 bindPhone（短信验证码校验），防止抢绑
         if (user.getEmail() != null && user.getEmail().trim().isEmpty()) {
             user.setEmail(null);
         }
@@ -335,15 +342,7 @@ public class UserService {
             user.setNickname(null);
         }
 
-        // 3. 校验手机号唯一性（如果修改了手机号）
-        if (user.getPhone() != null && !user.getPhone().equals(existUser.getPhone())) {
-            User phoneUser = userMapper.findByPhone(user.getPhone());
-            if (phoneUser != null) {
-                return Result.error(400, "手机号已被其他用户使用");
-            }
-        }
-
-        // 4. 校验邮箱唯一性（如果修改了邮箱）
+        // 3. 校验邮箱唯一性（如果修改了邮箱）
         if (user.getEmail() != null && !user.getEmail().equals(existUser.getEmail())) {
             User emailUser = userMapper.findByEmail(user.getEmail());
             if (emailUser != null) {
@@ -358,9 +357,6 @@ public class UserService {
         // 只更新非空字段
         if (user.getNickname() != null) {
             updateWrapper.set(User::getNickname, user.getNickname());
-        }
-        if (user.getPhone() != null) {
-            updateWrapper.set(User::getPhone, user.getPhone());
         }
         if (user.getEmail() != null) {
             updateWrapper.set(User::getEmail, user.getEmail());
@@ -380,6 +376,82 @@ public class UserService {
             return Result.success("更新成功");
         }
         return Result.error(500, "更新失败");
+    }
+
+    /**
+     * 绑定手机号（需短信验证码）
+     * <p>
+     * 与 updateUserInfo 分离：手机号是登录凭证，必须验证码校验后才能绑定，
+     * 防止任意登录用户把他人未绑定的手机号抢绑到自己账号上。
+     *
+     * @param userId 当前登录用户 ID
+     * @param phone 待绑定的手机号
+     * @param code 短信验证码
+     * @return 绑定结果
+     */
+    @Transactional
+    public Result<Object> bindPhone(Long userId, String phone, String code) {
+        // 1. 参数校验
+        if (userId == null) {
+            return Result.error(401, "未登录");
+        }
+        if (phone == null || !ReUtil.isMatch("^1[3-9]\\d{9}$", phone)) {
+            return Result.error(400, "手机号格式不正确");
+        }
+        if (code == null || code.trim().isEmpty()) {
+            return Result.error(400, "验证码不能为空");
+        }
+
+        // 2. 校验验证码
+        String redisKey = "sms:code:" + phone;
+        Object cached;
+        try {
+            cached = redisTemplate.opsForValue().get(redisKey);
+        } catch (Exception e) {
+            log.warn("Redis 不可用: {}", e.getMessage());
+            return Result.error(500, "服务繁忙，请稍后重试");
+        }
+        if (cached == null) {
+            return Result.error(400, "验证码已过期或不存在");
+        }
+        if (!code.equals(cached.toString())) {
+            return Result.error(400, "验证码错误");
+        }
+
+        // 3. 校验用户是否存在
+        User existUser = userMapper.selectById(userId);
+        if (existUser == null) {
+            return Result.error(404, "用户不存在");
+        }
+
+        // 4. 手机号查重（允许自己重复绑定，但手机号已被他人使用则拒绝）
+        User phoneUser = userMapper.findByPhone(phone);
+        if (phoneUser != null && !phoneUser.getId().equals(userId)) {
+            return Result.error(400, "手机号已被其他用户使用");
+        }
+
+        // 5. 更新手机号
+        LambdaUpdateWrapper<User> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(User::getId, userId)
+                .set(User::getPhone, phone)
+                .set(User::getUpdateTime, LocalDateTime.now());
+
+        int rows = userMapper.update(null, updateWrapper);
+        if (rows > 0) {
+            // 删除已使用的验证码 + 用户详情缓存
+            try {
+                redisTemplate.delete(redisKey);
+            } catch (Exception e) {
+                log.warn("删除验证码缓存失败: {}", e.getMessage());
+            }
+            try {
+                redisService.delete(USER_CACHE_KEY + "detail:" + userId);
+            } catch (Exception e) {
+                log.warn("删除用户缓存失败: {}", e.getMessage());
+            }
+            return Result.success("绑定成功");
+        }
+        return Result.error(500, "绑定失败");
     }
 
     /**
@@ -534,15 +606,10 @@ public class UserService {
      * 1. 参数校验（手机号、验证码不能为空，手机号格式校验）
      * 2. 从 Redis 获取验证码
      * 3. 验证码校验（是否过期、是否正确）
-     * 4. 查询用户是否存在
-     * 5. 如果用户不存在，使用分布式锁防止并发注册同一手机号
-     *    - 锁key: lock:user:register:phone:{phone}
-     *    - 尝试获取锁（等待3秒，锁持有10秒）
-     *    - 双重检查用户是否存在
-     *    - 创建新用户并保存
-     * 6. 生成 JWT token
-     * 7. 构建返回数据（用户信息 + token）
-     * 8. 返回成功结果
+     * 4. 按手机号查询用户：不存在则提示先用账号密码注册并绑定手机号（不再自动注册）
+     * 5. 校验账号状态（禁用 / 删除）
+     * 6. 删除已使用的验证码
+     * 7. 生成 JWT token 并返回用户信息
      */
     public Result<Map<String, Object>> loginByCode(String phone, String code) {
         if (phone == null || phone.trim().isEmpty()) {
@@ -573,54 +640,17 @@ public class UserService {
             return Result.error(400, "验证码错误");
         }
 
-        // 查用户，不存在则自动注册
+        // 查用户，不存在则提示先注册并绑定手机号（不再自动注册）
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
                 .eq(User::getPhone, phone));
         if (user == null) {
-            // 使用分布式锁防止并发注册同一手机号
-            String lockKey = "lock:user:register:phone:" + phone;
-            RLock lock = redissonClient.getLock(lockKey);
-            try {
-                boolean tryLock = lock.tryLock(3, 10, TimeUnit.SECONDS);
-                if (!tryLock) {
-                    return Result.error(500, "系统繁忙，请稍后重试");
-                }
-                // Double Check
-                User existUser = userMapper.selectOne(new LambdaQueryWrapper<User>()
-                        .eq(User::getPhone, phone));
-                if (existUser != null) {
-                    user = existUser;
-                } else {
-                    user = new User();
-                    user.setPhone(phone);
-                    // 生成随机用户名：mall_随机8位字母数字
-                    String randomUsername = "mall_" + RandomUtil.randomString(8);
-                    user.setUsername(randomUsername);
-                    // 生成随机昵称：用户+手机号后4位
-                    user.setNickname("用户" + phone.substring(phone.length() - 4));
-                    user.setPassword(passwordEncoder.encode(RandomUtil.randomString(12)));
-                    user.setStatus(1);
-                    user.setIsDeleted(0);
-                    user.setCreateTime(LocalDateTime.now());
-                    user.setUpdateTime(LocalDateTime.now());
-                    userMapper.insert(user);
-                    log.info("验证码登录自动注册新用户：phone={}, username={}", phone, randomUsername);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return Result.error(500, "系统异常，请稍后重试");
-            } finally {
-                if (lock.isHeldByCurrentThread()) {
-                    lock.unlock();
-                }
-            }
-        } else {
-            if (user.getStatus() != null && user.getStatus() == 0) {
-                return Result.error(403, "账号已被禁用");
-            }
-            if (user.getIsDeleted() != null && user.getIsDeleted() == 1) {
-                return Result.error(403, "账号不存在");
-            }
+            return Result.error(400, "该手机号未绑定账号，请先用账号密码注册并绑定手机号");
+        }
+        if (user.getStatus() != null && user.getStatus() == 0) {
+            return Result.error(403, "账号已被禁用");
+        }
+        if (user.getIsDeleted() != null && user.getIsDeleted() == 1) {
+            return Result.error(403, "账号不存在");
         }
 
         // 删除已使用的验证码

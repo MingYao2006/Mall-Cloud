@@ -109,6 +109,16 @@ public class UserController {
     }
 
     /**
+     * 绑定手机号（需短信验证码，已登录用户专用）
+     */
+    @Operation(summary = "绑定手机号")
+    @PostMapping("/phone/bind")
+    public Result<Object> bindPhone(@RequestParam String phone, @RequestParam String code, HttpServletRequest request) {
+        Long userId = resolveUserId(request);
+        return userService.bindPhone(userId, phone, code);
+    }
+
+    /**
      * 发送验证码
      */
     @Operation(summary = "发送验证码")

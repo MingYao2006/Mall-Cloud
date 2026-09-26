@@ -101,6 +101,15 @@ public class UserController {
     }
 
     /**
+     * 绑定手机号（需短信验证码，转发到用户微服务）
+     */
+    @Operation(summary = "绑定手机号")
+    @PostMapping("/phone/bind")
+    public Result<Object> bindPhone(@RequestParam String phone, @RequestParam String code, HttpServletRequest request) {
+        return userServiceFeignClient.bindPhone(phone, code, resolveToken(request));
+    }
+
+    /**
      * 发送验证码（转发到用户微服务）
      */
     @Operation(summary = "发送验证码")
