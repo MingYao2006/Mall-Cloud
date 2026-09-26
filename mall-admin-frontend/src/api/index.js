@@ -95,7 +95,9 @@ export const categoryApi = {
 export const commentApi = {
   getProductComments: (productId) => request.get(`/comment/product/${productId}`),
   getUserComments: (userId) => request.get(`/comment/user/${userId}`),
-  audit: (commentId, status) => request.put(`/comment/audit/${commentId}`, null, { params: { status } })
+  audit: (commentId, status) => request.put(`/comment/audit/${commentId}`, null, { params: { status } }),
+  getPage: (params) => request.get('/comment/page', { params }),
+  getCount: (params) => request.get('/comment/count', { params })
 }
 
 export const searchApi = {

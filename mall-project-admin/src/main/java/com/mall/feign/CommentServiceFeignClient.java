@@ -1,11 +1,13 @@
 package com.mall.feign;
 
+import com.mall.common.PageResult;
 import com.mall.common.Result;
 import com.mall.entity.ProductComment;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 评论服务 Feign 客户端（管理端用）
@@ -32,4 +34,10 @@ public interface CommentServiceFeignClient {
 
     @GetMapping("/user/{userId}")
     Result<List<ProductComment>> getUserComments(@PathVariable("userId") Long userId);
+
+    @GetMapping("/page")
+    Result<PageResult> pageComments(@RequestParam Map<String, Object> params);
+
+    @GetMapping("/count")
+    Result<Map<String, Long>> countByStatus(@RequestParam Map<String, Object> params);
 }

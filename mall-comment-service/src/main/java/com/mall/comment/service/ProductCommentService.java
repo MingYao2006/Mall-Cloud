@@ -1,14 +1,19 @@
 package com.mall.comment.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.mall.comment.entity.ProductComment;
 import com.mall.comment.mapper.ProductCommentMapper;
+import com.mall.common.PageResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -85,5 +90,38 @@ public class ProductCommentService {
                 .orderByDesc(ProductComment::getCreateTime);
         
         return productCommentMapper.selectList(queryWrapper);
+    }
+
+    /**
+     * 管理端分页查询：status 为空表示不限状态
+     */
+    public PageResult pageComments(Integer status, Long productId, Long userId, Integer pageNum, Integer pageSize) {
+        long current = (pageNum == null || pageNum < 1) ? 1 : pageNum;
+        long size = (pageSize == null || pageSize < 1) ? 10 : Math.min(pageSize, 100);
+        Page<ProductComment> page = new Page<>(current, size);
+
+        LambdaQueryWrapper<ProductComment> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(status != null, ProductComment::getStatus, status)
+                .eq(productId != null, ProductComment::getProductId, productId)
+                .eq(userId != null, ProductComment::getUserId, userId)
+                .orderByDesc(ProductComment::getCreateTime);
+
+        IPage<ProductComment> result = productCommentMapper.selectPage(page, wrapper);
+        return new PageResult((int) result.getCurrent(), (int) result.getSize(), result.getTotal(), result.getRecords());
+    }
+
+    /**
+     * 按状态统计数量，key 为 "0"/"1"/"2"，用于 tab 徽标
+     */
+    public Map<String, Long> countByStatus(Long productId, Long userId) {
+        Map<String, Long> counts = new HashMap<>();
+        for (int s = 0; s <= 2; s++) {
+            LambdaQueryWrapper<ProductComment> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(ProductComment::getStatus, s)
+                    .eq(productId != null, ProductComment::getProductId, productId)
+                    .eq(userId != null, ProductComment::getUserId, userId);
+            counts.put(String.valueOf(s), productCommentMapper.selectCount(wrapper));
+        }
+        return counts;
     }
 }
