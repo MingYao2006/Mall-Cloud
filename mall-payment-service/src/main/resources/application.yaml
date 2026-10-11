@@ -82,8 +82,6 @@ payment:
     private-key: ${ALIPAY_PRIVATE_KEY:}
     public-key: ${ALIPAY_PUBLIC_KEY:}
     alipay-public-key: ${ALIPAY_ALIPAY_PUBLIC_KEY:}
-#    gateway-url: https://openapi.alipay.com/gateway.do
     gateway-url: https://openapi-sandbox.dl.alipaydev.com/gateway.do
-#    gateway-url: https://openapi.alipaydev.com/gateway.do
     notify-url: https://impulse-mammary-worst.ngrok-free.dev/api/payment/alipay/notify
     return-url:  http://localhost:8080/pay-result.html

@@ -1,7 +1,5 @@
-#主配置文件 - 完全本地配置，不依赖 Nacos
 server:
   port: 9090
-  # 移除 context-path: /api
   # 网关 StripPrefix=2 后，请求到达时路径已无 /api 前缀
   # 例：前端 /api/c/users/login → 网关剥离 /api/c → 聚合服务收到 /users/login
 
@@ -47,11 +45,9 @@ logging:
     com.alibaba.nacos.client.config: WARN
     org.springframework.cloud.bootstrap: INFO
 
-# Knife4j 配置
 knife4j:
   enable: true
 
-# SpringDoc 配置
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
