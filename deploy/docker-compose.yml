@@ -1,0 +1,502 @@
+# ============================================================
+#  mall-oymy 一键部署（腾讯云 + Cloudflare Tunnel）
+#
+#  架构：Cloudflare 边缘 -> cloudflared 出站隧道 -> nginx -> gateway:9000 -> 各微服务
+#        MySQL / Redis / RabbitMQ / Nacos / ES 全部只在内网，不对宿主机暴露端口。
+#
+#  用法：
+#     cd deploy
+#     cp .env.example .env && vi .env        # 填密码和 Tunnel Token
+#     docker compose up -d --build
+#     docker compose ps
+#
+#  可选：搜索引擎（Elasticsearch + search-service，额外约 1.5G 内存）
+#     docker compose --profile search up -d
+# ============================================================
+
+name: mall
+
+# ---------- 所有 Java 服务共用的镜像 / 网络 / 环境变量 ----------
+x-runtime: &runtime
+  image: mall-runtime:1.0
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile.runtime
+  restart: unless-stopped
+  networks: [mall-net]
+  environment: &java-env
+    SPRING_PROFILES_ACTIVE: cloud          # 不用 local，密钥全部走环境变量
+    TZ: Asia/Shanghai
+    JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_MAX:-256m} -XX:MaxMetaspaceSize=160m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+
+    # --- 密钥（绝不写进配置文件）---
+    JWT_SECRET: ${JWT_SECRET:?请在 deploy/.env 里设置 JWT_SECRET}
+    ALIPAY_PRIVATE_KEY: ${ALIPAY_PRIVATE_KEY:-}
+    ALIPAY_PUBLIC_KEY: ${ALIPAY_PUBLIC_KEY:-}
+    ALIPAY_ALIPAY_PUBLIC_KEY: ${ALIPAY_ALIPAY_PUBLIC_KEY:-}
+
+    # --- MySQL ---
+    SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/mall?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true"
+    SPRING_DATASOURCE_USERNAME: root
+    SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:?请在 deploy/.env 里设置 MYSQL_PASSWORD}
+    MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+    # --- Nacos 注册中心 ---
+    SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
+    SPRING_CLOUD_NACOS_DISCOVERY_USERNAME: nacos
+    SPRING_CLOUD_NACOS_DISCOVERY_PASSWORD: ${NACOS_PASSWORD:-nacos}
+    SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: nacos:8848
+    SPRING_CLOUD_NACOS_CONFIG_USERNAME: nacos
+    SPRING_CLOUD_NACOS_CONFIG_PASSWORD: ${NACOS_PASSWORD:-nacos}
+
+    # --- Redis ---
+    SPRING_DATA_REDIS_HOST: redis
+    SPRING_DATA_REDIS_PORT: "6379"
+
+    # --- RabbitMQ（不能用 guest，guest 只允许本机连接）---
+    SPRING_RABBITMQ_HOST: rabbitmq
+    SPRING_RABBITMQ_PORT: "5672"
+    SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-mall}
+    SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?请在 deploy/.env 里设置 RABBITMQ_PASSWORD}
+    SPRING_RABBITMQ_VIRTUAL_HOST: "/"
+
+    # --- Elasticsearch（没开 search profile 时连不上也无所谓）---
+    SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
+
+    # --- Sentinel：服务器上不跑控制台，关掉 eager 避免启动失败 ---
+    SPRING_CLOUD_SENTINEL_EAGER: "false"
+
+    # --- SkyWalking：Agent 已打进运行时镜像（deploy/Dockerfile.runtime），这里只配 OAP 后端地址 ---
+    #     各服务的名字在下面用 SW_AGENT_NAME 单独指定 ---
+    SW_AGENT_COLLECTOR_BACKEND_SERVICES: ${SW_AGENT_COLLECTOR_BACKEND_SERVICES:-oap:11800}
+
+    # --- 生产环境关闭接口文档（Knife4j / Swagger），别把全部接口暴露出去 ---
+    KNIFE4J_ENABLE: "false"
+    SPRINGDOC_API_DOCS_ENABLED: "false"
+    SPRINGDOC_SWAGGER_UI_ENABLED: "false"
+
+volumes:
+  mysql-data:
+  redis-data:
+  rabbitmq-data:
+  nacos-data:
+  es-data:
+
+networks:
+  mall-net:
+    driver: bridge
+
+services:
+
+  # ================= 基础设施 =================
+  mysql:
+    image: mysql:8.0
+    container_name: mall-mysql
+    restart: unless-stopped
+    networks: [mall-net]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:?}
+      MYSQL_DATABASE: mall
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 首次启动自动建表（已建过库就不会再执行）
+      - ../mall-Project/sql/mall_database.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ../mall-Project/sql/coupon_tables.sql:/docker-entrypoint-initdb.d/02-coupon.sql:ro
+      - ../mall-Project/sql/add_wx_login.sql:/docker-entrypoint-initdb.d/03-wx-login.sql:ro
+      - ../mall-Project/sql/fix_seckill_log_table.sql:/docker-entrypoint-initdb.d/04-fix-seckill.sql:ro
+      - ../mall-Project/sql/insert_test_coupons.sql:/docker-entrypoint-initdb.d/05-test-coupons.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: mall-redis
+    restart: unless-stopped
+    networks: [mall-net]
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: mall-rabbitmq
+    restart: unless-stopped
+    networks: [mall-net]
+    environment:
+      # 必须新建用户：guest 只允许从 localhost 登录，容器间连不上
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-mall}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?}
+      TZ: Asia/Shanghai
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: mall-nacos
+    restart: unless-stopped
+    networks: [mall-net]
+    environment:
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      NACOS_AUTH_ENABLE: "true"
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:-SecretKey012345678901234567890123456789012345678901234567890123456789}
+      NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY:-mallIdentity}
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE:-mallIdentityValue}
+      TZ: Asia/Shanghai
+    volumes:
+      - nacos-data:/home/nacos/data
+  # ================= 可选：搜索引擎 =================
+  elasticsearch:
+    image: elasticsearch:7.17.22
+    container_name: mall-elasticsearch
+    profiles: ["search", "skywalking"]
+    restart: unless-stopped
+    networks: [mall-net]
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      TZ: Asia/Shanghai
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+
+  # ================= SkyWalking 链路追踪（profile: skywalking） =================
+  oap:
+    image: apache/skywalking-oap-server:9.7.0
+    container_name: mall-skywalking-oap
+    profiles: ["skywalking"]
+    restart: unless-stopped
+    networks: [mall-net]
+    depends_on:
+      - elasticsearch
+    environment:
+      SW_STORAGE: elasticsearch
+      SW_STORAGE_ES_CLUSTER_NODES: elasticsearch:9200
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:11800:11800"
+      - "127.0.0.1:12800:12800"
+
+  skywalking-ui:
+    image: apache/skywalking-ui:9.7.0
+    container_name: mall-skywalking-ui
+    profiles: ["skywalking"]
+    restart: unless-stopped
+    networks: [mall-net]
+    depends_on:
+      - oap
+    environment:
+      SW_OAP_ADDRESS: http://oap:12800
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  # ================= 前端 + 入口 =================
+  nginx:
+    image: mall-web:1.0
+    container_name: mall-nginx
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    restart: unless-stopped
+    networks: [mall-net]
+    depends_on:
+      - gateway
+    # 只在宿主机回环地址暴露，方便本地排查；公网走 Tunnel，不需要开放 80/443
+    ports:
+      - "127.0.0.1:8088:80"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: mall-cloudflared
+    restart: unless-stopped
+    networks: [mall-net]
+    depends_on:
+      - nginx
+    # Token 模式：在 Cloudflare Zero Trust 面板创建 Tunnel 后拿到 token
+    command: ["tunnel", "--no-autoupdate", "run", "--token", "${TUNNEL_TOKEN:?请在 deploy/.env 里设置 TUNNEL_TOKEN}"]
+
+  # ================= Java 服务 =================
+
+  gateway:
+    <<: *runtime
+    container_name: mall-gateway
+    volumes:
+      - ../mall-gateway/target/mall-gateway-1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *java-env
+      SW_AGENT_NAME: mall-gateway
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_HEAVY_MAX:-448m} -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+  project:
+    <<: *runtime
+    container_name: mall-project
+    volumes:
+      - ../mall-Project/target/mall-Project-1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *java-env
+      SW_AGENT_NAME: mall-project
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_HEAVY_MAX:-448m} -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+  project-admin:
+    <<: *runtime
+    container_name: mall-project-admin
+    volumes:
+      - ../mall-project-admin/target/mall-project-admin-1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *java-env
+      SW_AGENT_NAME: mall-project-admin
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_HEAVY_MAX:-448m} -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+  user-service:
+    <<: *runtime
+    container_name: mall-user-service
+    volumes:
+      - ../mall-user-service/target/mall-user-service-1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *java-env
+      SW_AGENT_NAME: mall-user-service
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_MAX:-256m} -XX:MaxMetaspaceSize=160m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+  category-service:
+    <<: *runtime
+    container_name: mall-category-service
+    volumes:
+      - ../mall-category-service/target/mall-category-service-1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *java-env
+      SW_AGENT_NAME: mall-category-service
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_MAX:-256m} -XX:MaxMetaspaceSize=160m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+  product-service:
+    <<: *runtime
+    container_name: mall-product-service
+    volumes:
+      - ../mall-product-service/target/mall-product-service-1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *java-env
+      SW_AGENT_NAME: mall-product-service
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_MAX:-256m} -XX:MaxMetaspaceSize=160m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+  cart-service:
+    <<: *runtime
+    container_name: mall-cart-service
+    volumes:
+      - ../mall-cart-service/target/mall-cart-service-1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *java-env
+      SW_AGENT_NAME: mall-cart-service
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_MAX:-256m} -XX:MaxMetaspaceSize=160m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+  order-service:
+    <<: *runtime
+    container_name: mall-order-service
+    volumes:
+      - ../mall-order-service/target/mall-order-service-1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *java-env
+      SW_AGENT_NAME: mall-order-service
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_MAX:-256m} -XX:MaxMetaspaceSize=160m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+  seckill-service:
+    <<: *runtime
+    container_name: mall-seckill-service
+    volumes:
+      - ../mall-seckill-service/target/mall-seckill-service-1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *java-env
+      SW_AGENT_NAME: mall-seckill-service
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_MAX:-256m} -XX:MaxMetaspaceSize=160m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+  payment-service:
+    <<: *runtime
+    container_name: mall-payment-service
+    volumes:
+      - ../mall-payment-service/target/mall-payment-service-1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *java-env
+      SW_AGENT_NAME: mall-payment-service
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_HEAVY_MAX:-448m} -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+  comment-service:
+    <<: *runtime
+    container_name: mall-comment-service
+    volumes:
+      - ../mall-comment-service/target/mall-comment-service-1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *java-env
+      SW_AGENT_NAME: mall-comment-service
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_MAX:-256m} -XX:MaxMetaspaceSize=160m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+  cache-service:
+    <<: *runtime
+    container_name: mall-cache-service
+    volumes:
+      - ../mall-cache-service/target/mall-cache-service-1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *java-env
+      SW_AGENT_NAME: mall-cache-service
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_MAX:-256m} -XX:MaxMetaspaceSize=160m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+  coupon-service:
+    <<: *runtime
+    container_name: mall-coupon-service
+    volumes:
+      - ../mall-coupon-service/target/mall-coupon-service-1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *java-env
+      SW_AGENT_NAME: mall-coupon-service
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_MAX:-256m} -XX:MaxMetaspaceSize=160m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+  search-service:
+    <<: *runtime
+    container_name: mall-search-service
+    profiles: ["search"]
+    volumes:
+      - ../mall-search-service/target/mall-search-service-1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      <<: *java-env
+      SW_AGENT_NAME: mall-search-service
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_MAX:-256m} -XX:MaxMetaspaceSize=160m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+      elasticsearch:
+        condition: service_started
