@@ -22,12 +22,43 @@ docker-redis-cluster/redis-data/
 # ---------- 本地私密配置（含密钥，禁止入库）----------
 application-local.yml
 application-local.yaml
+application-local.*
 .env
+.env.*
 **/.env
+**/.env.*
+
+# ---------- 密钥 / 证书 / 凭据文件（严禁入库）----------
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.cer
+*.crt
+cert/
+**/cert/
+credentials.json
+service-account*.json
+
+# ---------- 例外：模板文件必须入库 ----------
 !.env.example
 !**/.env.example
+!**/application-local.yml.example
 
 # ---------- 个人笔记（暂不入库）----------
 /readMe
 /redis主从集群的启动和停止命令.txt
 /项目启动流程.md
+
+# ---------- 微信小程序（半成品，暂不公开）----------
+/mall-miniprogram/
+/小程序开发计划.md
+
+# ---------- 本地临时/垃圾文件 ----------
+derby.log
+$null
+*_test_latest.html
+PublicInternetBash
+tunnel-*.json
