@@ -16,7 +16,7 @@ INSERT INTO coupon (
     available_stock,-- 剩余库存
     start_time,     -- 开始时间
     end_time,       -- 结束时间
-    status,         -- 状态：0=未开始, 1=进行中, 2=已结束
+    status,         -- 上架状态：0=未上架, 1=已上架, 2=已停用（未开始/进行中/已过期由时间与库存派生）
     create_time     -- 创建时间
 ) VALUES
 -- 【可抢购】满减券 - 新用户专享
@@ -35,13 +35,13 @@ INSERT INTO coupon (
 ('🎉 新人无门槛券', 3, 20.00, 0.00, 300, 250, 
  NOW(), DATE_ADD(NOW(), INTERVAL 10 DAY), 1, NOW()),
 
--- 【未开始】明天才开始
+-- 【未开始】已上架但未到开始时间（status=1，未开始由 start_time 派生）
 ('⏰ 明日秒杀券', 1, 80.00, 300.00, 100, 100, 
- DATE_ADD(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 8 DAY), 0, NOW()),
+ DATE_ADD(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 8 DAY), 1, NOW()),
 
--- 【已结束】过期的券
+-- 【已过期】已上架但已过结束时间（status=1，过期由 end_time 派生）
 ('❌ 历史优惠券', 1, 30.00, 150.00, 100, 0, 
- DATE_SUB(NOW(), INTERVAL 10 DAY), DATE_SUB(NOW(), INTERVAL 3 DAY), 2, NOW()),
+ DATE_SUB(NOW(), INTERVAL 10 DAY), DATE_SUB(NOW(), INTERVAL 3 DAY), 1, NOW()),
 
 -- 【已抢光】库存为0
 ('🔥 超值抢购券', 1, 60.00, 250.00, 20, 0, 
@@ -71,10 +71,10 @@ SELECT
     END AS '使用条件',
     CONCAT(available_stock, '/', total_stock) AS '库存',
     CASE status
-        WHEN 0 THEN '⏰ 未开始'
-        WHEN 1 THEN '✅ 进行中'
-        WHEN 2 THEN '❌ 已结束'
-    END AS '状态',
+        WHEN 0 THEN '未上架'
+        WHEN 1 THEN '已上架'
+        WHEN 2 THEN '已停用'
+    END AS '上架状态',
     DATE_FORMAT(start_time, '%m-%d %H:%i') AS '开始时间',
     DATE_FORMAT(end_time, '%m-%d %H:%i') AS '结束时间'
 FROM coupon 

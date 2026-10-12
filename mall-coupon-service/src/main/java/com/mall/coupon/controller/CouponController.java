@@ -2,6 +2,7 @@ package com.mall.coupon.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.mall.common.BusinessException;
+import com.mall.common.PageResult;
 import com.mall.common.Result;
 import com.mall.coupon.entity.Coupon;
 import com.mall.coupon.entity.UserCoupon;
@@ -123,4 +124,20 @@ public class CouponController {
 
         return Result.success(result);
     }
+    @GetMapping("/page")
+    public Result<PageResult> page(@RequestParam(required = false) Integer status,
+                                   @RequestParam(required = false) Integer type,
+                                   @RequestParam(required = false) String keyword,
+                                   @RequestParam(defaultValue = "1") Integer pageNum,
+                                   @RequestParam(defaultValue = "10") Integer pageSize) {
+        return Result.success(couponService.pageCoupons(status, type, keyword, pageNum, pageSize));
+    }
+
+    @PostMapping("/create")      public Result<Object> create(@RequestBody Coupon c) { return couponService.createCoupon(c); }
+    @PutMapping("/update")       public Result<Object> update(@RequestBody Coupon c) { return couponService.updateCoupon(c); }
+    @PutMapping("/status/{id}")  public Result<Object> status(@PathVariable Long id, @RequestParam Integer status) { return couponService.updateStatus(id, status); }
+    @PutMapping("/stock/{id}")   public Result<Object> stock(@PathVariable Long id, @RequestParam Integer totalStock) { return couponService.adjustStock(id, totalStock); }
+    @DeleteMapping("/{id}")      public Result<Object> delete(@PathVariable Long id) { return couponService.deleteCoupon(id); }
+    @GetMapping("/stats/{id}")   public Result<Map<String, Object>> stats(@PathVariable Long id) { return Result.success(couponService.getStats(id)); }
+    @GetMapping("/records/{id}") public Result<List<UserCoupon>> records(@PathVariable Long id) { return Result.success(couponService.getClaimRecords(id)); }
 }

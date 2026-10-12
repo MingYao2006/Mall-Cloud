@@ -9,19 +9,19 @@ spring:
       discovery:
         server-addr: localhost:8848
         username: nacos
-        password: nacos
+        password: ${NACOS_PASSWORD:nacos}
       config:
         server-addr: localhost:8848
         file-extension: yml
         username: nacos
-        password: nacos
+        password: ${NACOS_PASSWORD:nacos}
         import-check:
           enabled: false
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/mall?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
     username: root
-    password: 123456
+    password: ${MYSQL_PASSWORD:123456}
   data:
     redis:
       host: localhost
