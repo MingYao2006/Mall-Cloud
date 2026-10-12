@@ -17,9 +17,12 @@ import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 public class SeckillService {
@@ -62,25 +65,47 @@ public class SeckillService {
         String rediskey = SECKILL_LOCK_KEY + couponId;
         RLock lock = redissonClient.getLock(rediskey);
 
+        // Redis 预减库存是否已生效：只有生效过才需要补偿，否则异常路径会把库存越补越多
+        AtomicBoolean redisStockDecreased = new AtomicBoolean(false);
+        // 补偿出口守卫：CAS 保证一个请求最多回补一次，杜绝 catch 与 afterCompletion 叠加成双倍
+        AtomicBoolean compensated = new AtomicBoolean(false);
+        // 业务是否真正做成（DB 扣减 + 落券都成功）；事务是否落地由 afterCompletion 的 status 决定
+        AtomicBoolean bizSuccess = new AtomicBoolean(false);
+        boolean unlockAfterTransaction = false;
+
         try {
-            boolean tryLock = lock.tryLock(3, 10, TimeUnit.SECONDS);
+            // 不传 leaseTime，交给 Redisson 看门狗续期：固定 10 秒租约一过期，
+            // 锁就在事务还没提交时被别人拿走，限领判定直接失效
+            boolean tryLock = lock.tryLock(3, TimeUnit.SECONDS);
             if (!tryLock) {
                 return Result.error(500, "系统繁忙，请稍后重试");
             }
-
-            String userkey = SECKILL_USER_KEY + couponId + ":" + userId;
-            if (Boolean.TRUE.equals(redisTemplate.hasKey(userkey))) {
-                return Result.error(600, "您已参与过该活动");
-            }
+            unlockAfterTransaction = finishAfterTransaction(lock, couponId,
+                    redisStockDecreased, compensated, bizSuccess);
 
             Coupon coupon = couponMapper.selectById(couponId);
             if (coupon == null || coupon.getStatus() != 1) {
                 return Result.error(600, "优惠券不存在或活动未开始");
             }
-            
-            if (coupon.getLimitPerUser() != null && coupon.getLimitPerUser() > 0) {
+            if (coupon.getStartTime() == null || LocalDateTime.now().isBefore(coupon.getStartTime())) {
+                return Result.error(600, "活动尚未开始");
+            }
+            if (coupon.getEndTime() == null || LocalDateTime.now().isAfter(coupon.getEndTime())) {
+                return Result.error(600, "活动已结束");
+            }
+
+            Integer limitPerUser = coupon.getLimitPerUser();
+            String userkey = SECKILL_USER_KEY + couponId + ":" + userId;
+            // 「已参与」标记是布尔值，只能在每人限领 1 张时当快速拒绝用；
+            // limitPerUser > 1 时它会误挡合法的第二次抢券，判定交给下面的 DB count
+            boolean singlePerUser = limitPerUser != null && limitPerUser == 1;
+            if (singlePerUser && Boolean.TRUE.equals(redisTemplate.hasKey(userkey))) {
+                return Result.error(600, "您已参与过该活动");
+            }
+
+            if (limitPerUser != null && limitPerUser > 0) {
                 Integer count = userCouponMapper.countByUserIdAndCouponId(userId, couponId);
-                if (count != null && count >= coupon.getLimitPerUser()) {
+                if (count != null && count >= limitPerUser) {
                     return Result.error(600, "已达到每人限抢数量");
                 }
             }
@@ -89,13 +114,14 @@ public class SeckillService {
             if (stock < 0) {
                 return Result.error(600, "优惠券已抢完");
             }
+            redisStockDecreased.set(true);
 
             int decreased = couponMapper.decreaseStock(couponId);
             if (decreased == 0) {
-                redisTemplate.opsForValue().increment(COUPON_STOCK_KEY + couponId);
+                // 这里不回补：Redis 已减而 DB 没扣，统一交给唯一出口按 !bizSuccess 补恰好一次
                 return Result.fail("抢券失败，请重试");
             }
-            
+
             UserCoupon userCoupon = new UserCoupon();
             userCoupon.setUserId(userId);
             userCoupon.setCouponId(couponId);
@@ -110,22 +136,112 @@ public class SeckillService {
             seckillLog.setSeckillTime(LocalDateTime.now());
             seckillLogMapper.insert(seckillLog);
             
-            redisTemplate.opsForValue().set(userkey, "1", 24, TimeUnit.HOURS);
+            if (singlePerUser) {
+                redisTemplate.opsForValue().set(userkey, "1", 24, TimeUnit.HOURS);
+            }
             logger.info("秒杀成功: userId={}, couponId={}", userId, couponId);
+            bizSuccess.set(true);
             return Result.success("抢券成功");
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            compensateRedisStock(couponId);
+            logger.error("秒杀被中断: userId={}, couponId={}", userId, couponId, e);
             return Result.error(600, "系统异常");
         } catch (Exception e) {
-            compensateRedisStock(couponId);
-            logger.error("秒杀失败，回滚Redis库存: userId={}, couponId={}", userId, couponId, e);
+            logger.error("秒杀失败: userId={}, couponId={}", userId, couponId, e);
             throw e;
         } finally {
-            if (lock.isHeldByCurrentThread()) {
-                lock.unlock();
+            if (!unlockAfterTransaction) {
+                // 当前没有事务同步可用（如内部自调用绕过代理）：先定库存再释放锁。
+                // 这条分支不能按 +1 回补：没事务就没回滚，coupon 那次条件 UPDATE 已经永久生效，
+                // +1 会凭空造出一个库存位，只能按 DB 权威值重建。
+                if (redisStockDecreased.get() && !bizSuccess.get()) {
+                    rebuildRedisStock(couponId);
+                }
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
             }
+        }
+    }
+
+    /**
+     * 事务结束后统一收尾：先按最终结果决定要不要回补 Redis 库存，再释放分布式锁。
+     * 两件事必须放在同一个 synchronization 里按顺序做，不能依赖多个 synchronization 之间的回调顺序；
+     * 也不能把 unlock 放进 finally —— 那会早于 @Transactional 提交，下一个请求拿到锁时读不到
+     * 上一个请求尚未提交的 user_coupon 行，限领判定就会失效。
+     *
+     * @return false 表示当前没有事务同步可用，由调用方在 finally 里自己走唯一出口
+     */
+    private boolean finishAfterTransaction(RLock lock, Long couponId,
+                                           AtomicBoolean redisStockDecreased,
+                                           AtomicBoolean compensated,
+                                           AtomicBoolean bizSuccess) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return false;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                try {
+                    compensateIfRequired(couponId, redisStockDecreased, compensated, bizSuccess, status);
+                } finally {
+                    if (lock.isHeldByCurrentThread()) {
+                        lock.unlock();
+                    }
+                }
+            }
+        });
+        return true;
+    }
+
+    /**
+     * 库存补偿的唯一出口：只有「Redis 已减」且「这一个库存位最终没被消耗掉」时才回补，且靠 CAS 只补一次。
+     */
+    private void compensateIfRequired(Long couponId, AtomicBoolean redisStockDecreased,
+                                      AtomicBoolean compensated, AtomicBoolean bizSuccess, int status) {
+        if (!redisStockDecreased.get()) {
+            return;
+        }
+        // 只有「业务成功 + 事务已提交」才等于库存真的被卖掉（STATUS_UNKNOWN 时提交结果不可知，不能算成功）
+        if (status == TransactionSynchronization.STATUS_COMMITTED && bizSuccess.get()) {
+            return;
+        }
+        if (status == TransactionSynchronization.STATUS_UNKNOWN) {
+            // 提交阶段抛异常：DB 到底扣没扣无法判断，猜 +1 可能虚增，不猜——以 DB 为权威值重建 key，幂等收敛
+            rebuildRedisStock(couponId);
+            return;
+        }
+        compensateOnce(couponId, compensated);
+    }
+
+    /**
+     * 回补 1 个库存，重复调用只会生效一次。
+     */
+    private void compensateOnce(Long couponId, AtomicBoolean compensated) {
+        if (!compensated.compareAndSet(false, true)) {
+            logger.warn("Redis库存已补偿过，跳过重复回补: couponId={}", couponId);
+            return;
+        }
+        compensateRedisStock(couponId);
+    }
+
+    /**
+     * 事务提交结果未知时按 DB 可用库存重建 Redis key，比盲猜方向安全。
+     * 此刻分布式锁仍未释放，同活动的其他请求进不了临界区，重建期间不会被并发预减污染。
+     */
+    private void rebuildRedisStock(Long couponId) {
+        try {
+            Coupon coupon = couponMapper.selectById(couponId);
+            if (coupon == null) {
+                logger.error("Redis库存重建跳过，优惠券不存在: couponId={}", couponId);
+                return;
+            }
+            redisTemplate.opsForValue().set(COUPON_STOCK_KEY + couponId,
+                    coupon.getAvailableStock(), 1, TimeUnit.DAYS);
+            logger.warn("Redis库存按 DB 权威值重建: couponId={}, stock={}", couponId, coupon.getAvailableStock());
+        } catch (Exception e) {
+            logger.error("Redis库存重建失败: couponId={}", couponId, e);
         }
     }
 
