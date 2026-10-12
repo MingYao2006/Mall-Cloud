@@ -1,4 +1,6 @@
-docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 -v rabbitmq_data:/var/lib/rabbitmq rabbitmq:management
+docker run -d --name rabbitmq -p 5672:5672 -p 25672:15672 -v rabbitmq_data:/var/lib/rabbitmq docker.m.daocloud.io/library/rabbitmq:management
 docker start rabbitmq
 guest;guest(用户名，密码)
 docker stop rabbitmq 关闭
+管理界面：http://localhost:25672
+# 说明：15672 落在 Windows 保留端口段 15645-15744 内，宿主机无法绑定，故映射到 25672

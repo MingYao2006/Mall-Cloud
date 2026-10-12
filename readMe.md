@@ -14,7 +14,7 @@
 | API 网关 | Spring Cloud Gateway（C/B 端流量隔离 + JWT 鉴权） |
 | 服务调用 | OpenFeign + Spring Cloud LoadBalancer |
 | ORM | MyBatis-Plus 3.5.5 + MySQL 8 |
-| 缓存 | Redis 主从读写分离 + Redisson 分布式锁 + Caffeine 本地缓存 |
+| 缓存 | Redis 主从读写分离 + Redisson 分布式锁 + Caffeine 本地缓存（优惠券模块两级缓存） |
 | 消息队列 | RabbitMQ（延迟队列 + 死信队列 + 消息确认） |
 | 流控降级 | Sentinel |
 | 全文搜索 | Elasticsearch 7.17 |
@@ -81,7 +81,7 @@
 |---|---|---|
 | 缓存穿透 | 参数校验 + 空值缓存 | 查不到的数据缓存 null，TTL=5min |
 | 缓存击穿 | Redisson 分布式锁重建 | 热点 Key 过期时加锁重建，其他线程等待 |
-| 缓存雪崩 | 随机过期 + 预热 + 多级缓存 | 10-40min 随机 TTL + Caffeine 本地缓存 + 启动预热（mall-cache-service） |
+| 缓存雪崩 | 随机过期 + 预热 | 商品缓存 10-40min 随机 TTL + 启动预热（mall-Project 的 CacheWarmupService）；优惠券模块另用 Caffeine + Redis 两级缓存 |
 
 ### 3. 订单超时自动取消 — RabbitMQ 死信队列
 

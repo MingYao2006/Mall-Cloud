@@ -51,6 +51,8 @@ service-account*.json
 /readMe
 /redis主从集群的启动和停止命令.txt
 /项目启动流程.md
+# 面试问答含安全缺口清单与本地密钥位置，不进公开仓库
+/面试问题与答案.md
 
 # ---------- 微信小程序（半成品，暂不公开）----------
 /mall-miniprogram/
