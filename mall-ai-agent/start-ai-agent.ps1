@@ -5,10 +5,33 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptDir
 
-# 检查 .env 是否已配置
+# 检查 .env 是否已配置，并校验密钥是否真实填写
 if (-not (Test-Path ".env")) {
     Write-Host "[错误] 缺少 .env 文件，请先执行: copy .env.example .env 并填入 DEEPSEEK_API_KEY 与 EMBEDDING_API_KEY" -ForegroundColor Red
     exit 1
+}
+$envContent = Get-Content ".env" -Raw
+if ($envContent -notmatch 'DEEPSEEK_API_KEY\s*=\s*[^\s#]+') {
+    Write-Host "[错误] .env 中未填写 DEEPSEEK_API_KEY，请编辑 .env 填入真实密钥" -ForegroundColor Red
+    exit 1
+}
+
+# 定位 Python（优先使用 venv，回退系统 python）
+$python = Join-Path $scriptDir ".venv\Scripts\python.exe"
+if (-not (Test-Path $python)) {
+    Write-Host "[提示] 未找到 .venv，回退使用系统 python ..." -ForegroundColor Yellow
+    $python = "python"
+}
+
+# 检查依赖，缺失则自动安装
+& $python -c "import fastapi, uvicorn" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[依赖] 首次运行，正在安装 requirements.txt ..." -ForegroundColor Yellow
+    & $python -m pip install -r requirements.txt
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[错误] 依赖安装失败，请手动执行: $python -m pip install -r requirements.txt" -ForegroundColor Red
+        exit 1
+    }
 }
 
 # 检查 8095 端口是否已被占用
@@ -25,7 +48,7 @@ Remove-Item "uvicorn.log", "uvicorn.err" -ErrorAction SilentlyContinue
 Write-Host "[启动] mall-ai-agent 服务，端口 8095 ..." -ForegroundColor Green
 Write-Host "[日志] 输出到 $scriptDir\uvicorn.log 与 uvicorn.err" -ForegroundColor Green
 
-Start-Process -FilePath "python" `
+Start-Process -FilePath $python `
     -ArgumentList '-m uvicorn app.main:app --host 0.0.0.0 --port 8095' `
     -WorkingDirectory $scriptDir `
     -WindowStyle Hidden `

@@ -5,12 +5,11 @@
 ## 快速启动
 
 ```powershell
-cd "D:\Java\project One\mall-ai-agent"
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-copy .env.example .env   # 填入 DEEPSEEK_API_KEY 与 EMBEDDING_API_KEY
-uvicorn app.main:app --host 0.0.0.0 --port 8095 --reload
+   cd "D:\Java\project One\mall-ai-agent"
+Remove-Item .venv -Recurse -Force
+D:\python-3.10\python.exe -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
 ```
 
 密钥只放在 `.env`（已 gitignore），`app/config.py` 里的默认值留空，不要写回源码。
