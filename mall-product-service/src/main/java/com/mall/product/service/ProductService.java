@@ -1273,24 +1273,14 @@ public class ProductService {
             throw new BusinessException(400, "增加数量必须大于0");
         }
 
-        // 2. 查询商品是否存在
-        Product product = productMapper.selectById(id);
-        if (product == null) {
+        // 2. 原子回补库存：stock = stock + ?，由数据库完成计算
+        // 取消订单的回补现在由资源队列消费者触发，多订单并发回补时"先查后写"会互相覆盖
+        int affected = productMapper.increaseStock(id, quantity);
+        if (affected == 0) {
             throw new BusinessException(404, "商品不存在");
         }
 
-        // 3. 使用 LambdaUpdateWrapper 增加库存
-        LambdaUpdateWrapper<Product> updateWrapper = new LambdaUpdateWrapper<>();
-        updateWrapper.eq(Product::getId, id)
-                .set(Product::getStock, product.getStock() + quantity)
-                .set(Product::getUpdateTime, LocalDateTime.now());
-
-        int result = productMapper.update(null, updateWrapper);
-        if (result <= 0) {
-            throw new BusinessException(500, "增加库存失败");
-        }
-
-        // 4. 清除商品详情缓存和库存缓存
+        // 3. 清除商品详情缓存和库存缓存
         clearProductDetailCache(id);
     }
 }
