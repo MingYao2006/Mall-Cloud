@@ -93,6 +93,15 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             "/api/payment/alipay/notify"
     );
 
+    // 公共白名单（前缀匹配）：上传的静态资源
+    // 浏览器用 <img src> 加载头像时不会带 Authorization 头，若要求 Token 会一律 401，
+    // 前端只能显示 el-avatar 的灰白占位。这里放行的是静态文件，不含任何用户数据接口。
+    // 文件名形如 avatar_{userId}_{时间戳}.png，路径不可枚举，但仍属公开可读资源——
+    // 若将来要放敏感文件（如订单凭证），必须改成签名 URL 而不是直接挂在这里。
+    private static final List<String> PUBLIC_WHITE_PREFIX = List.of(
+            "/uploads/"
+    );
+
     /**
      * 判断路径是否命中 C 端免登录白名单
      */
@@ -102,6 +111,18 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
         }
         for (Pattern pattern : C_WHITE_PATTERN) {
             if (pattern.matcher(path).matches()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 判断路径是否命中公共前缀白名单（上传的静态资源）
+     */
+    private boolean isPublicWhitePrefix(String path) {
+        for (String prefix : PUBLIC_WHITE_PREFIX) {
+            if (path.startsWith(prefix)) {
                 return true;
             }
         }
@@ -119,6 +140,11 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
         // 1. 公共白名单放行（支付回调等）
         if (PUBLIC_WHITE_LIST.contains(path)) {
+            return chain.filter(exchange.mutate().request(request).build());
+        }
+
+        // 1.1 公共前缀白名单放行（上传的静态资源，<img> 请求不带 Token）
+        if (isPublicWhitePrefix(path)) {
             return chain.filter(exchange.mutate().request(request).build());
         }
 

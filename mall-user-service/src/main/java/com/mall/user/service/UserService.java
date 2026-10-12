@@ -64,6 +64,13 @@ public class UserService {
     @Value("${wechat.miniapp.jscode2session-url:https://api.weixin.qq.com/sns/jscode2session}")
     private String wxJscode2SessionUrl;
 
+    // ============ 文件上传目录（见 application.yaml 的 file.upload-dir） ============
+    // 本服务是写入方，mall-Project 的 WebConfig 是读取方（/uploads/** 静态映射），
+    // 两者必须指向同一个绝对路径。原先各自用 System.getProperty("user.dir")，
+    // 而 user.dir 是各进程自己的启动目录，导致写进 A 目录、却去 B 目录找，头像 404。
+    @Value("${file.upload-dir}")
+    private String fileUploadDir;
+
     /**
      * 用户注册
      *
@@ -539,22 +546,22 @@ public class UserService {
                 : ".jpg";
         String newFilename = "avatar_" + userId + "_" + System.currentTimeMillis() + extension;
 
-        // 6. 保存文件（使用绝对路径）
+        // 6. 保存文件（目录来自配置，与 mall-Project 的 /uploads/** 静态映射共用同一配置项）
         try {
-            // 获取项目根目录的绝对路径
-//            6.1获取项目根目录的绝对路径
-            String projectPath = System.getProperty("user.dir");
-//            6.2拼接出上传目录的绝对路径
-            String uploadDir = projectPath + "/uploads/avatar/";
-//            6.3创建目录对象
-            java.io.File dir = new java.io.File(uploadDir);
+//            6.1 拼接头像子目录（去掉配置里可能带的结尾斜杠，避免出现 //）
+            String avatarDir = fileUploadDir.replaceAll("/+$", "") + "/avatar/";
+//            6.2创建目录对象
+            java.io.File dir = new java.io.File(avatarDir);
             if (!dir.exists()) {
                 dir.mkdirs();
             }
-            // 6.4创建目标文件对象
-            java.io.File destFile = new java.io.File(uploadDir + newFilename);
-            // 6.5 把上传的文件保存到目标位置
+            // 6.3创建目标文件对象
+            java.io.File destFile = new java.io.File(dir, newFilename);
+            // 6.4 把上传的文件保存到目标位置
             file.transferTo(destFile);
+
+            // 6.5 记录旧头像路径，落库成功后再删，避免"新文件没存住、旧头像也没了"
+            String oldAvatar = user.getAvatar();
 
             // 7. 更新用户头像 URL
             String avatarUrl = "/uploads/avatar/" + newFilename;
@@ -565,11 +572,40 @@ public class UserService {
             int rows = userMapper.update(null, updateWrapper);
 
             if (rows > 0) {
+                // 落库成功后再清理旧头像，失败只记日志：换头像不该因为删不掉旧文件而报错
+                deleteOldAvatar(oldAvatar, avatarUrl);
                 return Result.success(avatarUrl);
             }
             return Result.error(400, "头像上传失败");
         } catch (IOException e) {
             return Result.error(500, "上传失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 删除被替换掉的旧头像文件。
+     * 只处理本站上传的头像（以 /uploads/avatar/ 开头），外链头像（如微信返回的 URL）不动；
+     * 文件名做了路径穿越校验，避免 DB 里的脏值删到目录外的文件。
+     */
+    private void deleteOldAvatar(String oldAvatar, String newAvatar) {
+        if (StrUtil.isBlank(oldAvatar) || oldAvatar.equals(newAvatar)
+                || !oldAvatar.startsWith("/uploads/avatar/")) {
+            return;
+        }
+        String oldName = oldAvatar.substring("/uploads/avatar/".length());
+        // 只允许纯文件名，禁止 .. 或路径分隔符
+        if (StrUtil.isBlank(oldName) || oldName.contains("..")
+                || oldName.contains("/") || oldName.contains("\\")) {
+            log.warn("旧头像路径不合法，跳过删除: {}", oldAvatar);
+            return;
+        }
+        try {
+            java.io.File old = new java.io.File(fileUploadDir.replaceAll("/+$", "") + "/avatar/", oldName);
+            if (old.exists() && old.isFile() && old.delete()) {
+                log.info("已删除旧头像: {}", oldName);
+            }
+        } catch (Exception e) {
+            log.warn("删除旧头像失败（不影响本次上传）: {}, 错误: {}", oldName, e.getMessage());
         }
     }
 

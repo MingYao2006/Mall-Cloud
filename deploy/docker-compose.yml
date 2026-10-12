@@ -81,6 +81,8 @@ volumes:
   rabbitmq-data:
   nacos-data:
   es-data:
+  # 上传文件（头像等）：user-service 写入、project 读取静态资源，必须共享同一个卷
+  uploads-data:
 
 networks:
   mall-net:
@@ -268,9 +270,12 @@ services:
     container_name: mall-project
     volumes:
       - ../mall-Project/target/mall-Project-1.0-SNAPSHOT.jar:/app/app.jar:ro
+      # 读取 /uploads/** 静态资源，必须与 user-service 挂同一个卷
+      - uploads-data:/data/uploads:ro
     environment:
       <<: *java-env
       SW_AGENT_NAME: mall-project
+      FILE_UPLOAD_DIR: /data/uploads/
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_HEAVY_MAX:-448m} -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
     depends_on:
       mysql:
@@ -304,9 +309,12 @@ services:
     container_name: mall-user-service
     volumes:
       - ../mall-user-service/target/mall-user-service-1.0-SNAPSHOT.jar:/app/app.jar:ro
+      # 头像写入这里，与 project 共享同一卷，否则写进去后映射不到
+      - uploads-data:/data/uploads
     environment:
       <<: *java-env
       SW_AGENT_NAME: mall-user-service
+      FILE_UPLOAD_DIR: /data/uploads/
       JAVA_TOOL_OPTIONS: "-Xms128m -Xmx${JAVA_HEAP_MAX:-256m} -XX:MaxMetaspaceSize=160m -XX:+ExitOnOutOfMemoryError -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
     depends_on:
       mysql:

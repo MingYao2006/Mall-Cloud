@@ -114,7 +114,7 @@ app:
   jwt:
     secret: ${JWT_SECRET:}
     expiration: 86400000
-  
-  upload:
-    path: D:/upload/mall/
-    max-size: 10MB
+
+# 说明：原 app.upload.path / max-size 是历史遗留配置，代码从未读取，已删除。
+# 上传目录现统一由顶层 file.upload-dir 控制（见 application.yaml），
+# 且必须与 mall-user-service 的 file.upload-dir 保持一致。
