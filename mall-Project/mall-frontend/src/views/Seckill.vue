@@ -37,7 +37,7 @@
             <div class="sk-info">
               <p class="sk-name">{{ item.name }}</p>
               <div class="sk-price">
-                <span class="sk-current price">¥{{ item.seckillPrice?.toFixed(2) || item.price?.toFixed(2) }}</span>
+                <span class="sk-current price">¥{{ item.seckillPrice || item.price?.toFixed(2) }}</span>
                 <span class="sk-original">¥{{ item.price?.toFixed(2) }}</span>
               </div>
               <div class="sk-progress">
@@ -166,7 +166,7 @@ onUnmounted(() => {
 
 /* 倒计时横幅 */
 .seckill-banner {
-  background: linear-gradient(135deg, var(--color-accent), #d4623a);
+  background: linear-gradient(135deg, var(--color-accent), #e6452a);
   border-radius: var(--radius-lg);
   padding: 32px 40px;
   margin-bottom: var(--spacing-lg);

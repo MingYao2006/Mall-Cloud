@@ -2,8 +2,15 @@
   <div class="page-card">
     <div class="toolbar">
       <div class="toolbar-left">
-        <el-input v-model="searchUserId" placeholder="按用户ID筛选" style="width: 180px" clearable @clear="loadList" @keyup.enter="loadList" />
-        <el-button @click="loadList"><el-icon><Search /></el-icon> 查询</el-button>
+        <el-input v-model="searchUserId" placeholder="按用户ID筛选" style="width: 180px" clearable @clear="handleSearch" @keyup.enter="handleSearch" />
+        <el-select v-model="searchStatus" placeholder="订单状态" clearable style="width: 140px" @change="handleSearch">
+          <el-option label="待付款" :value="0" />
+          <el-option label="已付款" :value="1" />
+          <el-option label="已发货" :value="2" />
+          <el-option label="已完成" :value="3" />
+          <el-option label="已取消" :value="4" />
+        </el-select>
+        <el-button type="primary" @click="handleSearch"><el-icon><Search /></el-icon> 查询</el-button>
       </div>
     </div>
 
@@ -32,6 +39,19 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <div class="pager">
+      <el-pagination
+        background
+        layout="total, prev, pager, next, sizes"
+        :total="total"
+        :page-size="pageSize"
+        :current-page="pageNum"
+        :page-sizes="[10, 20, 50]"
+        @current-change="handlePageChange"
+        @size-change="handleSizeChange"
+      />
+    </div>
 
     <el-dialog v-model="detailVisible" title="订单详情" width="720px">
       <el-descriptions :column="2" border v-if="detail">
@@ -76,6 +96,10 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 const loading = ref(false)
 const tableData = ref([])
 const searchUserId = ref('')
+const searchStatus = ref(null)
+const pageNum = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
 const detailVisible = ref(false)
 const detail = ref(null)
 
@@ -86,11 +110,32 @@ function statusType(status) {
   return { 0: 'warning', 1: 'success', 2: 'info', 3: 'success', 4: 'danger' }[status] || 'info'
 }
 
+function handleSearch() {
+  pageNum.value = 1
+  loadList()
+}
+
+function handlePageChange(p) {
+  pageNum.value = p
+  loadList()
+}
+
+function handleSizeChange(s) {
+  pageSize.value = s
+  pageNum.value = 1
+  loadList()
+}
+
 async function loadList() {
   loading.value = true
   try {
-    const res = await orderApi.getList(searchUserId.value || null)
-    tableData.value = res.data || []
+    const params = { pageNum: pageNum.value, pageSize: pageSize.value }
+    if (searchUserId.value) params.userId = searchUserId.value
+    if (searchStatus.value !== null && searchStatus.value !== '') params.status = searchStatus.value
+    const res = await orderApi.getList(params)
+    const data = res.data || {}
+    tableData.value = data.list || []
+    total.value = Number(data.total || 0)
   } finally {
     loading.value = false
   }
@@ -115,3 +160,11 @@ async function handleCancel(row) {
 
 onMounted(() => loadList())
 </script>
+
+<style scoped>
+.pager {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+</style>

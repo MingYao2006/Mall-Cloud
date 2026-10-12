@@ -107,7 +107,7 @@ export const searchApi = {
 
 export const orderApi = {
   getDetail: (orderId) => request.get(`/orders/${orderId}`),
-  getList: (userId) => request.get('/orders', { params: userId ? { userId } : {} }),
+  getList: (params) => request.get('/orders', { params }),
   cancel: (orderId) => request.put(`/orders/${orderId}/cancel`)
 }
 
@@ -118,7 +118,19 @@ export const userApi = {
 
 export const couponApi = {
   getList: () => request.get('/coupon/list'),
-  getDetail: (id) => request.get(`/coupon/detail/${id}`)
+  getDetail: (id) => request.get(`/coupon/detail/${id}`),
+  getPage: (params) => request.get('/coupon/page', { params }),
+  create: (data) => request.post('/coupon/create', data),
+  update: (data) => request.put('/coupon/update', data),
+  updateStatus: (id, status) => request.put(`/coupon/status/${id}`, null, { params: { status } }),
+  adjustStock: (id, totalStock) => request.put(`/coupon/stock/${id}`, null, { params: { totalStock } }),
+  remove: (id) => request.delete(`/coupon/${id}`),
+  getStats: (id) => request.get(`/coupon/stats/${id}`),
+  getRecords: (id) => request.get(`/coupon/records/${id}`)
+}
+
+export const statsApi = {
+  getOverview: (days = 7) => request.get('/stats/overview', { params: { days } })
 }
 
 export default request

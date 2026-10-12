@@ -279,3 +279,159 @@ button {
   padding: var(--spacing-xl);
   color: var(--color-text-lighter);
 }
+
+/* ========================================
+   液态玻璃设计系统（对齐 C 端 mall-frontend）
+   ======================================== */
+
+:root {
+  /* 品牌色：与用户端一致的蓝紫 */
+  --brand-500: #5b6fd8;
+  --brand-600: #4356c4;
+  --brand-700: #35459f;
+  --brand-100: #eef1fd;
+
+  /* 强调色统一为用户端的品牌蓝紫（覆盖上面的管理端蓝色系） */
+  --color-accent: #5b6fd8;
+  --color-accent-hover: #4356c4;
+  --color-accent-light: rgba(91, 111, 216, 0.08);
+  --color-accent-shadow: rgba(91, 111, 216, 0.15);
+
+  /* 玻璃表面 */
+  --surface-glass: rgba(255, 255, 255, 0.55);
+  --surface-glass-strong: rgba(255, 255, 255, 0.74);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+
+  /* 玻璃阴影 */
+  --glass-shadow-sm: 0 4px 18px rgba(31, 42, 71, 0.07);
+  --glass-shadow: 0 10px 34px rgba(31, 42, 71, 0.11);
+  --glass-shadow-lg: 0 24px 70px rgba(31, 42, 71, 0.16);
+
+  /* 覆盖 Element Plus 主色，与用户端同一套视觉 */
+  --el-color-primary: #5b6fd8;
+  --el-color-primary-light-3: #8698e4;
+  --el-color-primary-light-5: #a9b6ec;
+  --el-color-primary-light-7: #ccd4f4;
+  --el-color-primary-light-8: #dde2f8;
+  --el-color-primary-light-9: #eef1fd;
+  --el-color-primary-dark-2: #4356c4;
+  --el-border-radius-base: 10px;
+}
+
+/* 页面极光背景：玻璃需要有背景才有质感 */
+body {
+  background-color: #eef1f8;
+  background-image:
+    radial-gradient(48rem 48rem at 8% -12%, rgba(91, 111, 216, 0.22), transparent 62%),
+    radial-gradient(40rem 40rem at 92% 4%, rgba(186, 140, 235, 0.2), transparent 62%),
+    radial-gradient(38rem 38rem at 46% 112%, rgba(110, 200, 226, 0.2), transparent 62%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+/* 基础玻璃层 */
+.glass {
+  background: var(--surface-glass);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-sm), var(--glass-highlight);
+}
+
+/* 高光折射：模拟液态玻璃的边缘反光 */
+.glass-specular {
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-specular::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.7;
+  box-shadow:
+    inset -10px -8px 0 -11px rgba(255, 255, 255, 0.95),
+    inset 0 -9px 0 -8px rgba(255, 255, 255, 0.95);
+}
+
+/* 页面卡片：玻璃质感 */
+.page-card {
+  background: var(--surface-glass-strong);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+}
+
+/* 顶栏玻璃化 */
+.admin-header {
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  backdrop-filter: blur(18px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: var(--glass-shadow-sm);
+}
+
+/* 侧边栏玻璃化 */
+.admin-sidebar {
+  background: linear-gradient(180deg, rgba(24, 32, 66, 0.94), rgba(17, 23, 50, 0.92));
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* 控制台统计卡片 */
+.glass-stat {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--surface-glass-strong);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.glass-stat:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--glass-shadow-lg), var(--glass-highlight);
+}
+
+.glass-stat .stat-icon {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(31, 42, 71, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.glass-stat .stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1f2a47;
+  line-height: 1.2;
+}
+
+.glass-stat .stat-label {
+  font-size: 13px;
+  color: #6b769a;
+}
+
+/* 图表容器 */
+.chart-box {
+  width: 100%;
+  height: 300px;
+}

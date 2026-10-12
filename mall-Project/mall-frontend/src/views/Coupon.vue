@@ -188,24 +188,29 @@ const handleSeckill = async (coupon) => {
   }
 }
 
+/* 状态语义统一：优先用后端 CouponStatus 派生的 displayStatus
+   （0-未上架 1-未开始 2-进行中 3-已抢光 4-已过期 5-已停用），
+   旧缓存取不到该字段时按同一判定顺序本地兜底，避免前后端结论不一致 */
+const DISPLAY_ONGOING = 2
+
 const canSeckill = (coupon) => {
+  if (coupon.displayStatus != null) return coupon.displayStatus === DISPLAY_ONGOING
   if (coupon.status !== 1) return false
-  if (coupon.availableStock <= 0) return false
   const now = new Date()
-  const start = new Date(coupon.startTime)
-  const end = new Date(coupon.endTime)
-  if (now < start || now > end) return false
+  if (coupon.endTime && now > new Date(coupon.endTime)) return false
+  if (coupon.startTime && now < new Date(coupon.startTime)) return false
+  if (coupon.availableStock <= 0) return false
   return true
 }
 
 const getSeckillBtnText = (coupon) => {
+  const hintMap = { 0: '未上架', 1: '活动未开始', 3: '已抢光', 4: '活动已结束', 5: '活动已结束' }
+  if (coupon.displayStatus != null) return hintMap[coupon.displayStatus] || '立即抢购'
   if (coupon.status !== 1) return '活动已结束'
-  if (coupon.availableStock <= 0) return '已抢光'
   const now = new Date()
-  const start = new Date(coupon.startTime)
-  const end = new Date(coupon.endTime)
-  if (now < start) return '活动未开始'
-  if (now > end) return '活动已结束'
+  if (coupon.endTime && now > new Date(coupon.endTime)) return '活动已结束'
+  if (coupon.startTime && now < new Date(coupon.startTime)) return '活动未开始'
+  if (coupon.availableStock <= 0) return '已抢光'
   return '立即抢购'
 }
 
@@ -268,7 +273,7 @@ onUnmounted(() => {
 
 /* 倒计时横幅 */
 .countdown-banner {
-  background: linear-gradient(135deg, var(--color-accent), #d4623a);
+  background: linear-gradient(135deg, var(--color-accent), #e6452a);
   border-radius: var(--radius-lg);
   padding: 32px 40px;
   margin-bottom: var(--spacing-lg);
@@ -375,7 +380,7 @@ onUnmounted(() => {
 }
 
 .coupon-left.type-discount {
-  background: linear-gradient(135deg, var(--color-accent), #d4623a);
+  background: linear-gradient(135deg, var(--color-accent), #e6452a);
 }
 
 .coupon-left.type-percent {
