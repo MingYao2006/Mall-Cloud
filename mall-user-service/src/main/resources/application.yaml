@@ -29,6 +29,11 @@ spring:
       host: localhost
       port: 6379
       database: 0
+  # 文件上传大小限制（Spring Boot 默认单文件仅 1MB，头像图片容易超限报 MaxUploadSizeExceededException）
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 20MB
 
 mybatis-plus:
   mapper-locations: classpath:mapper/*.xml

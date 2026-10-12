@@ -574,6 +574,13 @@ public class UserService {
             if (rows > 0) {
                 // 落库成功后再清理旧头像，失败只记日志：换头像不该因为删不掉旧文件而报错
                 deleteOldAvatar(oldAvatar, avatarUrl);
+                // 删除用户详情缓存，否则 /users/info 最长 30 分钟仍返回旧头像路径
+                // （旧文件已被 deleteOldAvatar 删掉，前端拿到的是 404 的破图）
+                try {
+                    redisService.delete(USER_CACHE_KEY + "detail:" + userId);
+                } catch (Exception e) {
+                    log.warn("删除用户缓存失败（不影响本次上传）: {}", e.getMessage());
+                }
                 return Result.success(avatarUrl);
             }
             return Result.error(400, "头像上传失败");

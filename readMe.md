@@ -4,6 +4,32 @@
 
 > 本项目为学习实践项目，支付对接的是支付宝沙箱环境，不涉及真实资金。
 
+## 界面预览
+
+### C 端商城
+
+| 首页 | 限时秒杀 |
+|---|---|
+| ![C 端首页](docs/screenshots/c-home.webp) | ![限时秒杀](docs/screenshots/c-seckill.webp) |
+
+| AI 智能导购 | 购物车与结算 |
+|---|---|
+| ![AI 智能导购](docs/screenshots/c-ai-guide.webp) | ![购物车与结算](docs/screenshots/c-cart.webp) |
+
+### B 端管理后台
+
+| 数据控制台 | 商品管理 |
+|---|---|
+| ![管理端控制台](docs/screenshots/b-dashboard.webp) | ![商品管理](docs/screenshots/b-products.webp) |
+
+| 评论管理 | 优惠券管理 |
+|---|---|
+| ![评论管理](docs/screenshots/b-comments.webp) | ![优惠券管理](docs/screenshots/b-coupons.webp) |
+
+| 搜索管理与 ES 全量同步 | |
+|---|---|
+| ![搜索管理](docs/screenshots/b-search.webp) | |
+
 ## 技术栈
 
 | 类别 | 技术 |

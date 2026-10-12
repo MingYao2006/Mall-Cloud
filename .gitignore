@@ -64,3 +64,7 @@ $null
 *_test_latest.html
 PublicInternetBash
 tunnel-*.json
+
+# ---------- 截图原图（不入库）----------
+# README 用的是 docs/screenshots/ 下压缩后的 WebP，这里的原始 PNG 有 17MB，只留本地
+/ExhibitPic/
