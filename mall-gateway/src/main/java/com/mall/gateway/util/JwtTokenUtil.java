@@ -5,6 +5,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -16,9 +17,8 @@ import java.util.Map;
 public class JwtTokenUtil {
 
     /**
-     * 密钥（必须与 AuthGlobalFilter 中的 SECRET 一致）
+     * 密钥统一从 JwtSecret 取（必须与 AuthGlobalFilter 保持一致），不再硬编码。
      */
-    private static final String SECRET = "mall-project-secret-key-2026-for-jwt-token-generation";
 
     /**
      * Token 有效期（毫秒）- 24小时
@@ -29,7 +29,7 @@ public class JwtTokenUtil {
      * 生成 HMAC-SHA 密钥
      */
     private static SecretKey getSecretKey() {
-        return Keys.hmacShaKeyFor(SECRET.getBytes());
+        return Keys.hmacShaKeyFor(JwtSecret.get().getBytes(StandardCharsets.UTF_8));
     }
 
     /**

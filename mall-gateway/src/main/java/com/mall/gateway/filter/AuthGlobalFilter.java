@@ -1,6 +1,8 @@
 package com.mall.gateway.filter;
 
+import com.mall.gateway.util.JwtSecret;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -14,6 +16,7 @@ import io.jsonwebtoken.security.Keys;
 import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -26,12 +29,22 @@ import java.util.regex.Pattern;
  * 2. 所有非白名单请求必须携带有效 JWT Token
  * 3. B 端请求（/api/admin/**）额外校验 role==1（管理员），非管理员返回 403
  * 4. 解析 Token 后将 userId、username、role 注入请求头，下游聚合服务可直接取用
+ * 5. 任何请求进入过滤器先剥离客户端自带的身份头，保证这三个头只有网关一个来源
  */
 @Slf4j
 @Component
 public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
-    private static final String SECRET = "mall-project-secret-key-2026-for-jwt-token-generation";
+    /** 只允许由网关注入的身份头，客户端传入的一律剥离 */
+    private static final List<String> IDENTITY_HEADERS = List.of("X-User-Id", "X-Username", "X-Role");
+
+    /**
+     * 密钥由配置提供（jwt.secret / 环境变量 JWT_SECRET），禁止硬编码；取值逻辑见 JwtSecret。
+     */
+    @Value("${jwt.secret:}")
+    public void setJwtSecret(String jwtSecret) {
+        JwtSecret.setConfigured(jwtSecret);
+    }
 
     // C 端白名单（精确路径）：不需要登录就能访问的接口
     // 注意：路径已包含 /api/c 前缀（网关随后 StripPrefix=2 再转发给聚合服务）
@@ -97,17 +110,21 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        ServerHttpRequest request = exchange.getRequest();
+        // 0. 无条件剥离客户端自带的用户身份头：这三个头只能由网关注入。
+        //    白名单路径也必须剥——否则伪造的 X-User-Id 会原样透传给下游直接取信它的接口。
+        ServerHttpRequest request = exchange.getRequest().mutate()
+                .headers(headers -> IDENTITY_HEADERS.forEach(headers::remove))
+                .build();
         String path = request.getURI().getPath();
 
         // 1. 公共白名单放行（支付回调等）
         if (PUBLIC_WHITE_LIST.contains(path)) {
-            return chain.filter(exchange);
+            return chain.filter(exchange.mutate().request(request).build());
         }
 
         // 2. C 端白名单放行
         if (isCustomerWhitePath(path)) {
-            return chain.filter(exchange);
+            return chain.filter(exchange.mutate().request(request).build());
         }
 
         // 3. 获取 Token
@@ -124,7 +141,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
         // 4. 验证 Token
         try {
-            SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes());
+            SecretKey key = Keys.hmacShaKeyFor(JwtSecret.get().getBytes(StandardCharsets.UTF_8));
             Claims claims = Jwts.parserBuilder()
                     .setSigningKey(key)
                     .build()

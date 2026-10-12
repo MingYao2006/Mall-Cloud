@@ -2,6 +2,8 @@ server:
   port: 9000
 
 spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
   application:
     name: mall-gateway
   cloud:
@@ -9,7 +11,7 @@ spring:
       discovery:
         server-addr: localhost:8848
         username: nacos
-        password: nacos
+        password: ${NACOS_PASSWORD:nacos}
     gateway:
       # 全局跨域配置（统一在网关层处理，聚合服务不再各自配置 CORS）
       globalcors:
@@ -59,3 +61,15 @@ spring:
             - Path=/api/ai/**
           filters:
             - StripPrefix=2    # /api/ai/chat → /chat
+          # 大模型回答本身就要十几到几十秒，不能用全局 30 秒超时把它掐掉
+          metadata:
+            response-timeout: 90s
+            connect-timeout: 3000
+      httpclient:
+        # 默认没有响应超时：下游卡住时连接会一直挂着，这里设一个上限
+        connect-timeout: 3000
+        response-timeout: 30s
+
+# JWT 签名密钥（禁止硬编码）：由环境变量 JWT_SECRET 注入；本地默认值见 application-local.yaml
+jwt:
+  secret: ${JWT_SECRET:}
