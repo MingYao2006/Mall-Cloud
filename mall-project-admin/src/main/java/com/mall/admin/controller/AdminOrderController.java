@@ -1,5 +1,6 @@
 package com.mall.admin.controller;
 
+import com.mall.common.PageResult;
 import com.mall.common.Result;
 import com.mall.entity.vo.OrderDetailVO;
 import com.mall.entity.vo.OrderVO;
@@ -34,13 +35,28 @@ public class AdminOrderController {
         return orderServiceFeignClient.getOrderByOrderId(orderId);
     }
 
-    @Operation(summary = "根据用户ID查询订单列表")
+    @Operation(summary = "查询订单列表（userId 为空则查全部）")
     @GetMapping
-    public Result<List<OrderVO>> getOrdersByUserId(@RequestParam(required = false) Long userId) {
+    public Result<PageResult> getOrders(@RequestParam(required = false) Long userId,
+                                        @RequestParam(required = false) Integer status,
+                                        @RequestParam(defaultValue = "1") Integer pageNum,
+                                        @RequestParam(defaultValue = "10") Integer pageSize) {
         if (userId != null) {
-            return orderServiceFeignClient.getOrdersByUserId(userId);
+            List<OrderVO> list = orderServiceFeignClient.getOrdersByUserId(userId).getData();
+            if (list == null) {
+                list = new java.util.ArrayList<>();
+            }
+            return Result.success(new PageResult(pageNum, pageSize, (long) list.size(), list));
         }
-        return orderServiceFeignClient.getAllOrders();
+        return orderServiceFeignClient.getAllOrders(status, pageNum, pageSize);
+    }
+
+    @Operation(summary = "分页查询全部订单（管理端）")
+    @GetMapping("/all")
+    public Result<PageResult> getAllOrders(@RequestParam(required = false) Integer status,
+                                           @RequestParam(defaultValue = "1") Integer pageNum,
+                                           @RequestParam(defaultValue = "10") Integer pageSize) {
+        return orderServiceFeignClient.getAllOrders(status, pageNum, pageSize);
     }
 
     @Operation(summary = "取消订单")

@@ -1,5 +1,7 @@
 package com.mall.feign;
 
+import com.mall.common.PageResult;
+import com.mall.common.vo.StatsOverviewVO;
 import com.mall.common.Result;
 import com.mall.entity.Order;
 import com.mall.entity.vo.OrderDetailVO;
@@ -35,9 +37,17 @@ public interface OrderServiceFeignClient {
     Result<Order> getOrderEntity(@PathVariable("orderId") Long orderId);
 
     /**
-     * 获取全部订单列表（管理端用，通过 userId=0 或不传参表示查全部）
-     * 复用现有接口，管理端可按需传 userId 查指定用户订单
+     * 分页查询全部订单（管理端）
+     * 支持按订单状态筛选 + 分页
      */
-    @GetMapping
-    Result<List<OrderVO>> getAllOrders();
+    @GetMapping("/all")
+    Result<PageResult> getAllOrders(@RequestParam(value = "status", required = false) Integer status,
+                                    @RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum,
+                                    @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize);
+
+    /**
+     * 控制台数据概览：核心指标 + 销售趋势 + 商品热度排行
+     */
+    @GetMapping("/stats/overview")
+    Result<StatsOverviewVO> getStatsOverview(@RequestParam(value = "days", defaultValue = "7") Integer days);
 }

@@ -1,20 +1,20 @@
 package com.mall.feign;
 
+import com.mall.common.PageResult;
 import com.mall.common.Result;
 import com.mall.entity.Coupon;
+import com.mall.entity.UserCoupon;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 优惠券服务 Feign 客户端（管理端用）
  * <p>
  * 管理端聚合服务通过此客户端调用 mall-coupon-service 微服务，
- * 用于查看优惠券列表和详情（管理端视角）。
- * <p>
- * 注意：优惠券的创建/修改/删除等管理操作需在 mall-coupon-service 补充对应接口后，
- * 在此客户端中添加对应方法。
+ * 覆盖优惠券的查询、创建、修改、上下架、库存调整、删除及领取统计等管理操作。
  */
 @FeignClient(
         name = "mall-coupon-service",
@@ -28,4 +28,28 @@ public interface CouponServiceFeignClient {
 
     @GetMapping("/detail/{id}")
     Result<Coupon> getCouponDetail(@PathVariable("id") Long id);
+
+    @GetMapping("/page")
+    Result<PageResult> pageCoupons(@RequestParam Map<String, Object> params);
+
+    @PostMapping("/create")
+    Result<Object> createCoupon(@RequestBody Coupon coupon);
+
+    @PutMapping("/update")
+    Result<Object> updateCoupon(@RequestBody Coupon coupon);
+
+    @PutMapping("/status/{id}")
+    Result<Object> updateStatus(@PathVariable("id") Long id, @RequestParam("status") Integer status);
+
+    @PutMapping("/stock/{id}")
+    Result<Object> adjustStock(@PathVariable("id") Long id, @RequestParam("totalStock") Integer totalStock);
+
+    @DeleteMapping("/{id}")
+    Result<Object> deleteCoupon(@PathVariable("id") Long id);
+
+    @GetMapping("/stats/{id}")
+    Result<Map<String, Object>> getStats(@PathVariable("id") Long id);
+
+    @GetMapping("/records/{id}")
+    Result<List<UserCoupon>> getClaimRecords(@PathVariable("id") Long id);
 }
