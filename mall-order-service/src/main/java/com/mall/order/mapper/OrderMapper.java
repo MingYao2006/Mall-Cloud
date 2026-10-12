@@ -2,11 +2,14 @@ package com.mall.order.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.mall.order.entity.Order;
+import com.mall.common.vo.SalesTrendItem;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
@@ -45,4 +48,33 @@ public interface OrderMapper extends BaseMapper<Order> {
 
     @Update("UPDATE orders SET status = 4, update_time = NOW() WHERE id = #{id}")
     int cancelOrder(Long id);
+
+    // ============================================================
+    // 管理端统计：有效订单 = 已支付 / 已发货 / 已完成（status IN (1,2,3)）
+    // ============================================================
+
+    @Select("SELECT COUNT(*) FROM orders WHERE is_deleted = 0 AND status IN (1, 2, 3)")
+    Long countEffectiveOrders();
+
+    @Select("SELECT COUNT(*) FROM orders WHERE is_deleted = 0")
+    Long countAllOrders();
+
+    @Select("SELECT IFNULL(SUM(pay_amount), 0) FROM orders WHERE is_deleted = 0 AND status IN (1, 2, 3)")
+    BigDecimal sumEffectiveAmount();
+
+    @Select("SELECT COUNT(*) FROM orders WHERE is_deleted = 0 AND create_time >= #{start}")
+    Long countSince(@Param("start") LocalDateTime start);
+
+    @Select("SELECT IFNULL(SUM(pay_amount), 0) FROM orders WHERE is_deleted = 0 " +
+            "AND status IN (1, 2, 3) AND create_time >= #{start}")
+    BigDecimal sumEffectiveAmountSince(@Param("start") LocalDateTime start);
+
+    @Select("SELECT COUNT(*) FROM orders WHERE is_deleted = 0 AND status = #{status}")
+    Long countByStatus(@Param("status") Integer status);
+
+    @Select("SELECT DATE_FORMAT(create_time, '%Y-%m-%d') AS statDate, " +
+            "COUNT(*) AS orderCount, IFNULL(SUM(pay_amount), 0) AS salesAmount " +
+            "FROM orders WHERE is_deleted = 0 AND status IN (1, 2, 3) AND create_time >= #{start} " +
+            "GROUP BY statDate ORDER BY statDate")
+    List<SalesTrendItem> selectSalesTrend(@Param("start") LocalDateTime start);
 }

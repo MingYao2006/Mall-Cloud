@@ -2,7 +2,9 @@ package com.mall.order.controller;
 
 import com.alibaba.csp.sentinel.annotation.SentinelResource;
 import com.alibaba.csp.sentinel.slots.block.BlockException;
+import com.mall.common.PageResult;
 import com.mall.common.Result;
+import com.mall.common.vo.StatsOverviewVO;
 import com.mall.order.entity.Order;
 import com.mall.order.entity.dto.CreateOrderRequest;
 import com.mall.order.entity.vo.OrderDetailVO;
@@ -74,6 +76,27 @@ public class OrderController {
         }
         List<OrderVO> orders = orderService.getOrdersByUserId(userId);
         return Result.success(orders);
+    }
+
+    /**
+     * 分页查询全部订单（管理端）
+     * 支持按订单状态筛选 + 分页
+     */
+    @Operation(summary = "分页查询全部订单（管理端）")
+    @GetMapping("/all")
+    public Result<PageResult> getAllOrders(@RequestParam(value = "status", required = false) Integer status,
+                                           @RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum,
+                                           @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize) {
+        return Result.success(orderService.pageOrders(status, pageNum, pageSize));
+    }
+
+    /**
+     * 管理端控制台数据概览：核心指标 + 销售趋势 + 商品热度排行
+     */
+    @Operation(summary = "管理端控制台数据概览")
+    @GetMapping("/stats/overview")
+    public Result<StatsOverviewVO> getStatsOverview(@RequestParam(value = "days", defaultValue = "7") Integer days) {
+        return Result.success(orderService.getStatsOverview(days));
     }
 
     /**

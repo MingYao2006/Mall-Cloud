@@ -1,7 +1,14 @@
 package com.mall.order.service;
 
 import com.mall.common.BusinessException;
+import com.mall.common.PageResult;
 import com.mall.common.Result;
+import com.mall.common.vo.HotProductItem;
+import com.mall.common.vo.SalesTrendItem;
+import com.mall.common.vo.StatsOverviewVO;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.mall.order.config.RabbitMqConfig;
 import com.mall.order.entity.Cart;
 import com.mall.order.entity.Item.OrderItem;
 import com.mall.order.entity.Order;
@@ -22,9 +29,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import com.mall.common.RedisService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -108,7 +118,7 @@ public class OrderService {
         // 4. 生成订单号
         String orderNo = generateOrderNo();
 
-        // 5. 创建订单主表
+        // 5. 组装订单主表对象（尚未落库）
         Order order = new Order();
         order.setOrderNo(orderNo);
         order.setUserId(request.getUserId());
@@ -126,30 +136,75 @@ public class OrderService {
         order.setUpdateTime(LocalDateTime.now());
         order.setIsDeleted(0);
 
-        orderMapper.insert(order);
+        // 6. 扣减库存（远程调用，不受本地事务保护）
+        //    放在本地写入之前：本地写入失败时能显式回补已扣的部分；
+        //    若放在最后，一旦本地回滚就是"库存已扣、订单不存在"的永久泄漏。
+        List<OrderItem> deductedItems = new ArrayList<>();
+        try {
+            for (OrderItem item : orderItems) {
+                decreaseStock(item.getProductId(), item.getQuantity());
+                   deductedItems.add(item);
+            }
 
-        // 6. 创建订单详情
-        for (OrderItem item : orderItems) {
-            item.setOrderId(order.getId());
-            item.setOrderNo(orderNo);
-            item.setCreateTime(LocalDateTime.now());
-            item.setUpdateTime(LocalDateTime.now());
+            // 7. 订单落库
+            orderMapper.insert(order);
+
+            // 8. 创建订单详情
+            for (OrderItem item : orderItems) {
+                item.setOrderId(order.getId());
+                item.setOrderNo(orderNo);
+                item.setCreateTime(LocalDateTime.now());
+                item.setUpdateTime(LocalDateTime.now());
+            }
+            orderItemMapper.batchInsert(orderItems);
+
+            // 9. 清理购物车（如果是从购物车下单）
+            if (request.getCartItemIds() != null && !request.getCartItemIds().isEmpty()) {
+                cartMapper.deleteByIds(request.getCartItemIds());
+            }
+        } catch (RuntimeException | Error e) {
+            compensateStock(deductedItems);
+            throw e;
         }
-        orderItemMapper.batchInsert(orderItems);
 
-        // 7. 扣减库存
-        for (OrderItem item : orderItems) {
-            decreaseStock(item.getProductId(), item.getQuantity());
-        }
-
-        // 8. 清理购物车（如果是从购物车下单）
-        if (request.getCartItemIds() != null && !request.getCartItemIds().isEmpty()) {
-            cartMapper.deleteByIds(request.getCartItemIds());
-        }
-
-        sendDelayMessages(order.getId());
+        sendDelayMessagesAfterCommit(order.getId());
 
         return order;
+    }
+
+    /**
+     * 回补下单过程中已扣减的库存。
+     * 回补本身也是远程调用，可能失败——此时只能记录日志，由库存对账兜底；
+     * 要彻底消除这个窗口需要本地消息表或 RocketMQ 事务消息，当前架构未引入。
+     */
+    private void compensateStock(List<OrderItem> deductedItems) {
+        for (OrderItem item : deductedItems) {
+            try {
+                Result<String> result = productServiceFeignClient.increaseStock(item.getProductId(), item.getQuantity());
+                if (result == null || result.getCode() == null || result.getCode() != 200) {
+                    System.err.println("下单失败后回补库存未成功, productId=" + item.getProductId());
+                }
+            } catch (Exception e) {
+                System.err.println("下单失败后回补库存异常, productId=" + item.getProductId() + ": " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 在事务提交成功后再发送超时延迟消息；若无事务则直接发送。
+     * 事务内发送会让回滚后的订单也收到关单消息，且 MQ 抖动会拉长事务、占用数据库连接。
+     */
+    private void sendDelayMessagesAfterCommit(Long orderId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            sendDelayMessages(orderId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                sendDelayMessages(orderId);
+            }
+        });
     }
 
     /**
@@ -158,8 +213,8 @@ public class OrderService {
     private void sendDelayMessages(Long orderId) {
         try {
             rabbitTemplate.convertAndSend(
-                    "order.delay.exchange",
-                    "order.delay.key",
+                    RabbitMqConfig.ORDER_DELAY_EXCHANGE,
+                    RabbitMqConfig.ORDER_DELAY_ROUTING_KEY,
                     orderId,
                     message -> {
                         message.getMessageProperties().setExpiration(String.valueOf(TimeUnit.MINUTES.toMillis(ORDER_TIMEOUT_MINUTES)));
@@ -167,7 +222,8 @@ public class OrderService {
                     }
             );
         } catch (Exception e) {
-            System.err.println("发送订单超时消息失败: " + e.getMessage());
+            // afterCommit 阶段事务已提交，这里只能记录日志；订单会停留在待支付状态，由定时兜底任务处理
+            System.err.println("发送订单超时消息失败, orderId=" + orderId + ": " + e.getMessage());
         }
 
     }
@@ -454,6 +510,89 @@ public class OrderService {
     }
 
     /**
+     * 分页查询订单（管理端）
+     *
+     * @param status   订单状态，可为 null 表示全部
+     * @param pageNum  页码
+     * @param pageSize 每页数量
+     * @return 分页结果
+     */
+    public PageResult pageOrders(Integer status, Integer pageNum, Integer pageSize) {
+        if (pageNum == null || pageNum < 1) {
+            pageNum = 1;
+        }
+        if (pageSize == null || pageSize < 1) {
+            pageSize = 10;
+        }
+        if (pageSize > 100) {
+            pageSize = 100;
+        }
+
+        Page<Order> page = new Page<>(pageNum, pageSize);
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        if (status != null) {
+            wrapper.eq(Order::getStatus, status);
+        }
+        wrapper.orderByDesc(Order::getCreateTime);
+        orderMapper.selectPage(page, wrapper);
+
+        List<OrderVO> voList = new ArrayList<>();
+        for (Order order : page.getRecords()) {
+            voList.add(convertToOrderVO(order));
+        }
+        return new PageResult((int) page.getCurrent(), (int) page.getSize(), page.getTotal(), voList);
+    }
+
+    /**
+     * 管理端控制台数据概览：核心指标 + 销售趋势 + 商品热度排行。
+     *
+     * @param days 趋势统计天数（含今天）
+     * @return 概览数据
+     */
+    public StatsOverviewVO getStatsOverview(int days) {
+        if (days < 1) {
+            days = 7;
+        }
+        if (days > 90) {
+            days = 90;
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalDateTime todayStart = today.atStartOfDay();
+        LocalDateTime rangeStart = today.minusDays(days - 1L).atStartOfDay();
+
+        StatsOverviewVO vo = new StatsOverviewVO();
+        vo.setTotalOrders(orderMapper.countEffectiveOrders());
+        vo.setTotalAllOrders(orderMapper.countAllOrders());
+        vo.setTotalSales(orderMapper.sumEffectiveAmount());
+        vo.setTodayOrders(orderMapper.countSince(todayStart));
+        vo.setTodaySales(orderMapper.sumEffectiveAmountSince(todayStart));
+        vo.setPendingOrders(orderMapper.countByStatus(0));
+        vo.setUnshippedOrders(orderMapper.countByStatus(1));
+
+        // 数据库只返回有订单的日期，这里补齐空白天，避免折线图断档
+        List<SalesTrendItem> raw = orderMapper.selectSalesTrend(rangeStart);
+        Map<String, SalesTrendItem> byDate = new HashMap<>();
+        if (raw != null) {
+            for (SalesTrendItem item : raw) {
+                byDate.put(item.getStatDate(), item);
+            }
+        }
+        List<SalesTrendItem> trend = new ArrayList<>();
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        for (int i = 0; i < days; i++) {
+            String date = today.minusDays(days - 1L - i).format(fmt);
+            SalesTrendItem hit = byDate.get(date);
+            trend.add(hit != null ? hit : new SalesTrendItem(date, 0L, BigDecimal.ZERO));
+        }
+        vo.setTrend(trend);
+
+        List<HotProductItem> hotProducts = orderItemMapper.selectHotProducts(10);
+        vo.setHotProducts(hotProducts != null ? hotProducts : new ArrayList<>());
+        return vo;
+    }
+
+    /**
      * 根据订单ID查询订单详情
      *
      * @param orderId 订单ID
@@ -616,17 +755,32 @@ public class OrderService {
         if (orderItems == null || orderItems.isEmpty()) {
             throw new BusinessException(400, "订单中没有商品");
         }
-        // 6. 恢复商品库存
-        for (OrderItem item : orderItems) {
-            decreaseStockForCancel(item.getProductId(), item.getQuantity());
-        }
+        // 6. 库存恢复统一交由资源队列消费者处理，避免与异步链路重复归还
         // 7. 更新订单状态为已取消
         order.setStatus(4);
         // 8. 记录更新时间
         order.setUpdateTime(LocalDateTime.now());
         orderMapper.updateById(order);
 
-        sendOrderCancelledMessage(order.getId(), orderItems);
+        // 事务提交后再发送资源消息，避免“订单已取消但消息丢失”
+        sendOrderCancelledMessageAfterCommit(order.getId(), orderItems);
+    }
+
+    /**
+     * 在事务提交成功后再发送订单取消消息；若无事务则直接发送。
+     * afterCommit 阶段事务已提交，发送失败只能记日志，需要补偿机制（如本地消息表）兜底。
+     */
+    private void sendOrderCancelledMessageAfterCommit(Long orderId, List<OrderItem> orderItems) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            sendOrderCancelledMessage(orderId, orderItems);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                sendOrderCancelledMessage(orderId, orderItems);
+            }
+        });
     }
 
     /**
@@ -652,36 +806,6 @@ public class OrderService {
             System.out.println("订单取消消息已发送，订单ID: " + orderId);
         } catch (Exception e) {
             System.err.println("发送订单取消消息失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 取消订单时恢复库存（原子操作，防止并发问题）
-     * 互斥锁 ：防止取消订单恢复库存时与下单扣库存冲突
-     */
-    private void decreaseStockForCancel(Long productId, Integer quantity) {
-        String redisKey = "lock:product:stock:" + productId;
-        RLock lock = redissonClient.getLock(redisKey);
-        try {
-            boolean tryLock = lock.tryLock(3, 10, TimeUnit.SECONDS);
-            if (!tryLock) {
-                throw new BusinessException(500, "系统繁忙，请稍后重试");
-            }
-//            int affectedRows = productMapper.increaseStock(productId, quantity);
-            Result<String> result = productServiceFeignClient.increaseStock(productId, quantity);
-            if (result == null || result.getCode() == null || result.getCode() != 200) {
-                throw new BusinessException(500, "库存增加失败：" + (result != null ? result.getMessage() : "服务无响应"));
-            }
-//            if (affectedRows == 0) {
-//                throw new BusinessException(500, "恢复库存失败，商品ID：" + productId);
-//            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new BusinessException(500, "获取锁被中断");
-        } finally {
-            if (lock.isHeldByCurrentThread()) {
-                lock.unlock();
-            }
         }
     }
 

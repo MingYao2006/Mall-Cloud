@@ -9,12 +9,12 @@ spring:
       discovery:
         server-addr: localhost:8848
         username: nacos
-        password: nacos
+        password: ${NACOS_PASSWORD:nacos}
       config:
         server-addr: localhost:8848
         file-extension: yml
         username: nacos
-        password: nacos
+        password: ${NACOS_PASSWORD:nacos}
         import-check:
           enabled: false
     sentinel:
@@ -27,7 +27,7 @@ spring:
           nacos:
             server-addr: localhost:8848
             username: nacos
-            password: nacos
+            password: ${NACOS_PASSWORD:nacos}
             data-id: ${spring.application.name}-flow-rules
             group-id: SENTINEL_GROUP
             data-type: json
@@ -36,7 +36,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/mall?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
     username: root
-    password: 123456
+    password: ${MYSQL_PASSWORD:123456}
   data:
     redis:
       host: localhost
@@ -45,8 +45,20 @@ spring:
     host: localhost
     port: 5672
     username: guest
-    password: guest
+    password: ${RABBITMQ_PASSWORD:guest}
     virtual-host: /
+    # 生产者侧确认： Broker 收不到消息时能在回调里发现，而不是发完就当成功
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        # 消费抛异常先本地重试 3 次；仍失败则 reject 且不再回到原队列，
+        # 由队列的 x-dead-letter-exchange 投递到死信队列（否则毒消息会无限重投打满 CPU）
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 2000ms
+        default-requeue-rejected: false
 
 mybatis-plus:
   configuration:
