@@ -1,0 +1,29 @@
+# ============================================================
+#  Cloudflare Tunnel 配置
+#  用法（在服务器上执行一次）：
+#    cloudflared tunnel login
+#    cloudflared tunnel create mall
+#    cloudflared tunnel route dns mall oymy-mall.online
+#    cloudflared tunnel route dns mall www.oymy-mall.online
+#    cloudflared tunnel route dns mall admin.oymy-mall.online
+#  然后把下面 <TUNNEL_ID> 换成 `cloudflared tunnel list` 里的 ID。
+#
+#  注意：cloudflared 在 compose 网络里直接访问 nginx:80，
+#        源站不监听任何公网端口，安全组也不需要放行 80/443。
+# ============================================================
+
+tunnel: <TUNNEL_ID>
+credentials-file: /etc/cloudflared/credentials.json
+
+originRequest:
+  connectTimeout: 30s
+  noTLSVerify: true          # 容器内是 http，不需要校验上游证书
+
+ingress:
+  - hostname: oymy-mall.online
+    service: http://nginx:80
+  - hostname: www.oymy-mall.online
+    service: http://nginx:80
+  - hostname: admin.oymy-mall.online
+    service: http://nginx:80
+  - service: http_status:404

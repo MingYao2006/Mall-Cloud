@@ -1,0 +1,27 @@
+# 通用 Spring Boot 运行时镜像（所有 Java 服务共用）
+# 项目里多数模块用 JDK 23 编译，所以运行时必须是 23
+FROM eclipse-temurin:23-jre
+
+# SkyWalking Java Agent：构建时下载并打进镜像，所有 Java 服务共用同一份
+# 版本可通过构建参数覆盖：docker compose build --build-arg SKYWALKING_AGENT_VERSION=9.7.0
+ARG SKYWALKING_AGENT_VERSION=9.7.0
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends curl ca-certificates; \
+    rm -rf /var/lib/apt/lists/*; \
+    mkdir -p /skywalking-agent; \
+    curl -fsSL "https://archive.apache.org/dist/skywalking/java-agent/${SKYWALKING_AGENT_VERSION}/apache-skywalking-java-agent-${SKYWALKING_AGENT_VERSION}.tgz" -o /tmp/skywalking-agent.tgz; \
+    tar -xzf /tmp/skywalking-agent.tgz -C /skywalking-agent --strip-components=1; \
+    rm -f /tmp/skywalking-agent.tgz; \
+    test -f /skywalking-agent/skywalking-agent.jar
+
+WORKDIR /app
+
+# jar 由 docker-compose 以只读卷挂载到 /app/app.jar
+# Agent 用 JDK_JAVA_OPTIONS 注入：compose 里各服务会覆盖 JAVA_TOOL_OPTIONS，用它才不会把 Agent 丢掉
+# 关闭单个服务的监控：在该服务的 environment 里加一行 JDK_JAVA_OPTIONS: ""
+ENV TZ=Asia/Shanghai \
+    JAVA_TOOL_OPTIONS="-Xms128m -Xmx384m -XX:MaxMetaspaceSize=192m -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8" \
+    JDK_JAVA_OPTIONS="-javaagent:/skywalking-agent/skywalking-agent.jar"
+
+ENTRYPOINT ["sh", "-c", "exec java -jar /app/app.jar"]
