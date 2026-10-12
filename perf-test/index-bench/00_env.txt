@@ -1,0 +1,16 @@
+mysql: [Warning] Using a password on the command line interface can be insecure.
++---------------+
+| mysql_version |
++---------------+
+| 8.0.46        |
++---------------+
++-------------------+
+| product_rows_real |
++-------------------+
+|               146 |
++-------------------+
++-------------------------+-------+
+| Variable_name           | Value |
++-------------------------+-------+
+| cte_max_recursion_depth | 1000  |
++-------------------------+-------+

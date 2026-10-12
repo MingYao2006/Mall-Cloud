@@ -1,0 +1,74 @@
+{
+  "C_cache_hit": {
+    "requests": 10000,
+    "duration_s": 11.05,
+    "qps": 904.7,
+    "avg": 61.7,
+    "p50": 51,
+    "p90": 117,
+    "p95": 149,
+    "p99": 222,
+    "max": 567,
+    "min": 7,
+    "codes": {
+      "200": 10000
+    },
+    "group": "C_cache_hit",
+    "desc": "命中 Redis 详情缓存（存在的商品，已预热）",
+    "threads": 100,
+    "loops": 100,
+    "db_before": 3055,
+    "db_after": 3056,
+    "db_selects": 1,
+    "wall_s": 16.4,
+    "selects_per_req": 0.0
+  },
+  "B_null_cache": {
+    "requests": 10000,
+    "duration_s": 14.06,
+    "qps": 711.0,
+    "avg": 99.1,
+    "p50": 95,
+    "p90": 168,
+    "p95": 191,
+    "p99": 254,
+    "max": 375,
+    "min": 8,
+    "codes": {
+      "400": 10000
+    },
+    "group": "B_null_cache",
+    "desc": "命中空值缓存（固定 30 个不存在的 ID 循环）",
+    "threads": 100,
+    "loops": 100,
+    "db_before": 3057,
+    "db_after": 3094,
+    "db_selects": 37,
+    "wall_s": 19.7,
+    "selects_per_req": 0.004
+  },
+  "A_penetrate": {
+    "requests": 10000,
+    "duration_s": 21.84,
+    "qps": 457.9,
+    "avg": 175.9,
+    "p50": 179,
+    "p90": 236,
+    "p95": 257,
+    "p99": 315,
+    "max": 485,
+    "min": 23,
+    "codes": {
+      "400": 10000
+    },
+    "group": "A_penetrate",
+    "desc": "缓存穿透（每次都是全新的不存在 ID，等价于无防护）",
+    "threads": 100,
+    "loops": 100,
+    "db_before": 3095,
+    "db_after": 13092,
+    "db_selects": 9997,
+    "wall_s": 27.0,
+    "selects_per_req": 1.0
+  }
+}

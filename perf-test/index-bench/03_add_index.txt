@@ -1,0 +1,61 @@
+mysql: [Warning] Using a password on the command line interface can be insecure.
+--------------
+ALTER TABLE product_bench ADD INDEX idx_list_status_cat_price (is_deleted, status, category_id, price)
+--------------
+
+Query OK, 0 rows affected
+Records: 0  Duplicates: 0  Warnings: 0
+
+--------------
+ALTER TABLE product_bench ADD INDEX idx_list_status_cat_sort  (is_deleted, status, category_id, sort)
+--------------
+
+Query OK, 0 rows affected
+Records: 0  Duplicates: 0  Warnings: 0
+
+--------------
+ALTER TABLE product_bench ADD INDEX idx_list_status_price     (is_deleted, status, price)
+--------------
+
+Query OK, 0 rows affected
+Records: 0  Duplicates: 0  Warnings: 0
+
+--------------
+ANALYZE TABLE product_bench
+--------------
+
++--------------------+---------+----------+----------+
+| Table              | Op      | Msg_type | Msg_text |
++--------------------+---------+----------+----------+
+| mall.product_bench | analyze | status   | OK       |
++--------------------+---------+----------+----------+
+1 row in set
+
+--------------
+SHOW INDEX FROM product_bench
+--------------
+
++---------------+------------+---------------------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| Table         | Non_unique | Key_name                  | Seq_in_index | Column_name | Collation | Cardinality | Sub_part | Packed | Null | Index_type | Comment | Index_comment | Visible | Expression |
++---------------+------------+---------------------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| product_bench |          0 | PRIMARY                   |            1 | id          | A         |      198588 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_category_id           |            1 | category_id | A         |          18 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_brand                 |            1 | brand       | A         |           6 |     NULL |   NULL | YES  | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_price                 |            1 | price       | A         |       20313 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_sales                 |            1 | sales       | A         |       10500 |     NULL |   NULL | YES  | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_status                |            1 | status      | A         |           2 |     NULL |   NULL | YES  | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_list_status_cat_price |            1 | is_deleted  | A         |           1 |     NULL |   NULL | YES  | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_list_status_cat_price |            2 | status      | A         |           1 |     NULL |   NULL | YES  | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_list_status_cat_price |            3 | category_id | A         |          19 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_list_status_cat_price |            4 | price       | A         |       19656 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_list_status_cat_sort  |            1 | is_deleted  | A         |           1 |     NULL |   NULL | YES  | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_list_status_cat_sort  |            2 | status      | A         |           2 |     NULL |   NULL | YES  | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_list_status_cat_sort  |            3 | category_id | A         |          20 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_list_status_cat_sort  |            4 | sort        | A         |         101 |     NULL |   NULL | YES  | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_list_status_price     |            1 | is_deleted  | A         |           1 |     NULL |   NULL | YES  | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_list_status_price     |            2 | status      | A         |           2 |     NULL |   NULL | YES  | BTREE      |         |               | YES     | NULL       |
+| product_bench |          1 | idx_list_status_price     |            3 | price       | A         |       19875 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
++---------------+------------+---------------------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+17 rows in set
+
+Bye
