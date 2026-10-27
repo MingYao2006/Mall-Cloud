@@ -129,7 +129,8 @@ CREATE TABLE `orders` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_order_no` (`order_no`),
     KEY `idx_user_id` (`user_id`),
-    KEY `idx_status` (`status`),
+    -- 超时关单扫表用：status 等值 + create_time 范围，单列索引无法同时利用两者
+    KEY `idx_status_create` (`status`, `create_time`),
     KEY `idx_create_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='订单表';
 

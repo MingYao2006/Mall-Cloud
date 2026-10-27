@@ -8,7 +8,6 @@ import com.mall.common.vo.SalesTrendItem;
 import com.mall.common.vo.StatsOverviewVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.mall.order.config.RabbitMqConfig;
 import com.mall.order.entity.Cart;
 import com.mall.order.entity.Item.OrderItem;
 import com.mall.order.entity.Order;
@@ -74,8 +73,6 @@ public class OrderService {
 
     private static final String ORDER_CACHE_KEY = "order:";
     private static final Long CACHE_TIMEOUT = 30L;
-
-    private static final long ORDER_TIMEOUT_MINUTES = 30;
 
     public void sendSeckillMessage() {
 
@@ -167,8 +164,10 @@ public class OrderService {
             throw e;
         }
 
-        sendDelayMessagesAfterCommit(order.getId());
-
+        // 9. 超时关单不在这里发延迟消息。
+        //    超时关单的事实来源是 orders 表本身（status=0 且 create_time 超时），
+        //    由 OrderTimeoutTask 定时扫表驱动；MQ 延迟消息只是"更早发现"的优化，
+        //    一旦它成为唯一依据，就会出现"发消息前宕机 → 订单永久卡待支付、库存永久占用"。
         return order;
     }
 
@@ -188,44 +187,6 @@ public class OrderService {
                 System.err.println("下单失败后回补库存异常, productId=" + item.getProductId() + ": " + e.getMessage());
             }
         }
-    }
-
-    /**
-     * 在事务提交成功后再发送超时延迟消息；若无事务则直接发送。
-     * 事务内发送会让回滚后的订单也收到关单消息，且 MQ 抖动会拉长事务、占用数据库连接。
-     */
-    private void sendDelayMessagesAfterCommit(Long orderId) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            sendDelayMessages(orderId);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                sendDelayMessages(orderId);
-            }
-        });
-    }
-
-    /**
-     * 发送订单超时延迟消息
-     */
-    private void sendDelayMessages(Long orderId) {
-        try {
-            rabbitTemplate.convertAndSend(
-                    RabbitMqConfig.ORDER_DELAY_EXCHANGE,
-                    RabbitMqConfig.ORDER_DELAY_ROUTING_KEY,
-                    orderId,
-                    message -> {
-                        message.getMessageProperties().setExpiration(String.valueOf(TimeUnit.MINUTES.toMillis(ORDER_TIMEOUT_MINUTES)));
-                        return message;
-                    }
-            );
-        } catch (Exception e) {
-            // afterCommit 阶段事务已提交，这里只能记录日志；订单会停留在待支付状态，由定时兜底任务处理
-            System.err.println("发送订单超时消息失败, orderId=" + orderId + ": " + e.getMessage());
-        }
-
     }
 
     /**
@@ -739,31 +700,28 @@ public class OrderService {
         if (orderId == null) {
             throw new BusinessException(400, "订单id不存在");
         }
-        // 2. 查询订单信息
+        // 2. 查询订单信息（仅用于存在性校验和取订单项，状态判断交给下面的原子更新）
         Order order = orderMapper.selectById(orderId);
         // 3. 验证订单是否存在
         if (order == null) {
             throw new BusinessException(404, "订单不存在");
         }
-        // 4. 验证订单状态（只有待支付或已支付状态才能取消）
-        Integer status = order.getStatus();
-        if (status != 0 && status != 1) {
-            throw new BusinessException(400, "订单未处于待支付或已支付状态，当前状态为：" + getStatusText(status));
-        }
-        // 5. 查询订单详情列表
+        // 4. 查询订单详情列表
         List<OrderItem> orderItems = orderItemMapper.selectByOrderId(orderId);
         if (orderItems == null || orderItems.isEmpty()) {
             throw new BusinessException(400, "订单中没有商品");
         }
+        // 5. 原子取消：只有「待支付 / 已支付」才能改成已取消。
+        //    影响行数 != 1 说明状态已被并发修改（已发货、已完成、已取消），直接拒绝，
+        //    不能像以前那样先 select 判状态再 updateById，否则会覆盖并发的支付结果。
+        if (orderMapper.cancelIfPendingOrPaid(orderId) != 1) {
+            Order latest = orderMapper.selectById(orderId);
+            throw new BusinessException(400, "订单当前状态不允许取消，当前状态为："
+                    + getStatusText(latest == null ? null : latest.getStatus()));
+        }
         // 6. 库存恢复统一交由资源队列消费者处理，避免与异步链路重复归还
-        // 7. 更新订单状态为已取消
-        order.setStatus(4);
-        // 8. 记录更新时间
-        order.setUpdateTime(LocalDateTime.now());
-        orderMapper.updateById(order);
-
-        // 事务提交后再发送资源消息，避免“订单已取消但消息丢失”
-        sendOrderCancelledMessageAfterCommit(order.getId(), orderItems);
+        // 7. 事务提交后再发送资源消息，避免"订单已取消但消息丢失"
+        sendOrderCancelledMessageAfterCommit(orderId, orderItems);
     }
 
     /**
@@ -855,39 +813,55 @@ public class OrderService {
         if (orderId == null) {
             throw new BusinessException(400, "订单id不存在");
         }
-        // 2. 查询订单信息
+        // 2. 查询订单信息（仅用于存在性校验）
         Order order = orderMapper.selectById(orderId);
         // 3. 验证订单是否存在
         if (order == null) {
             throw new BusinessException(404, "订单不存在");
         }
-        // 4. 验证订单状态（只有待支付状态才能支付）
-        Integer status = order.getStatus();
-        if (status != 0) {
+        // 4. 原子支付：只有「待支付」才能改成已支付。
+        //    与超时关单的 cancelIfPending 互斥，谁先把 status=0 改掉谁生效，不会出现
+        //    "已取消的订单被支付"或"已支付的订单被取消"。
+        if (orderMapper.payIfPending(orderId) != 1) {
             throw new BusinessException(400, "订单未处于待支付状态");
         }
-        // 5. 更新订单状态为待发货
-        order.setStatus(1);
-        // 6. 记录支付时间
-        order.setPaymentTime(LocalDateTime.now());
-        // 7. 记录更新时间
-        order.setUpdateTime(LocalDateTime.now());
-        orderMapper.updateById(order);
-
-        sendPaymentMessage(order);
+        // 5. 支付成功消息在事务提交后发送，避免本地回滚却已通知下游增加销量
+        sendPaymentMessageAfterCommit(orderId, order.getUserId(), order.getOrderNo(), order.getPayAmount());
     }
 
 
     /**
+     * 支付成功消息发送器：在事务提交后发送，且发送失败只记日志。
+     * <p>
+     * 为什么必须挪到 afterCommit：原先在事务内发送，若本地事务随后回滚，
+     * 下游已经收到"支付成功"并增加了销量，造成销量虚增（不可逆）。
+     * 提交后发送的代价是发送失败时消息丢失——销量不是资损字段，
+     * 由后续对账任务兜底，优先级低于一致性正确性。
+     */
+    private void sendPaymentMessageAfterCommit(Long orderId, Long userId, String orderNo, BigDecimal payAmount) {
+        Runnable task = () -> sendPaymentMessage(orderId, userId, orderNo, payAmount);
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            task.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                task.run();
+            }
+        });
+    }
+
+    /**
      * 支付成功消息发送器
      */
-    private void sendPaymentMessage(Order order) {
+    private void sendPaymentMessage(Long orderId, Long userId, String orderNo, BigDecimal payAmount) {
         try {
             Map<String, Object> message = new HashMap<>();
-            message.put("orderId", order.getId());
-            message.put("userId", order.getUserId());
-            message.put("orderNo", order.getOrderNo());
-            message.put("payAmount", order.getPayAmount());
+            message.put("orderId", orderId);
+            message.put("userId", userId);
+            message.put("orderNo", orderNo);
+            message.put("payAmount", payAmount);
             message.put("paymentTime", LocalDateTime.now());
 
             rabbitTemplate.convertAndSend(
@@ -896,7 +870,7 @@ public class OrderService {
                     message
             );
 
-            System.out.println("支付成功消息已发送，订单ID: " + order.getId());
+            System.out.println("支付成功消息已发送，订单ID: " + orderId);
         } catch (Exception e) {
             System.err.println("发送支付成功消息失败: " + e.getMessage());
         }
@@ -926,15 +900,13 @@ public class OrderService {
         if (order == null) {
             throw new BusinessException(404, "订单不存在: " + orderNo);
         }
-        if (order.getStatus() != 0) {
-            return; // 已支付，幂等处理
+        // 原子幂等：支付宝会按 4m/10m/…/24h 重复回调，只有把 status 从 0 改成 1 的那一次
+        // 才真正完成支付并通知下游；后续回调影响行数为 0，直接幂等返回。
+        // 同时这里也是与超时关单的竞争点——订单若已被取消，支付不会覆盖取消结果。
+        if (orderMapper.payIfPending(order.getId()) != 1) {
+            return; // 已支付 / 已取消，幂等处理
         }
-        order.setStatus(1);
-        order.setPaymentTime(LocalDateTime.now());
-        order.setUpdateTime(LocalDateTime.now());
-        orderMapper.updateById(order);
-
-        sendPaymentMessage(order);
+        sendPaymentMessageAfterCommit(order.getId(), order.getUserId(), order.getOrderNo(), order.getPayAmount());
     }
 
 

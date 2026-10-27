@@ -70,6 +70,14 @@ mybatis-plus:
     db-config:
       id-type: auto
 
+# 超时关单扫表：超时关单的事实来源是 orders 表，由 OrderTimeoutTask 定时扫描驱动。
+# 间隔不要设得太小：扫描是兜底而非实时链路，1 分钟足够；
+# 启动延迟给应用预热留出时间，避免刚起就与健康检查抢数据库连接。
+mall:
+  order:
+    timeout-scan-interval-ms: 60000
+    timeout-scan-initial-delay-ms: 30000
+
 knife4j:
   enable: true
 

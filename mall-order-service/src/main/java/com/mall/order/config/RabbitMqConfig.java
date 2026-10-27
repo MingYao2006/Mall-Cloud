@@ -21,14 +21,10 @@ public class RabbitMqConfig {
     public static final String SECKILL_ROUTING_KEY = "seckill.key";
 
 
-    public static final String ORDER_DELAY_EXCHANGE = "order.delay.exchange";
-    public static final String ORDER_DELAY_QUEUE = "order.delay.queue";
-    public static final String ORDER_DELAY_ROUTING_KEY = "order.delay.key";
-
-    public static final String ORDER_CANCEL_EXCHANGE = "order.cancel.exchange";
-    public static final String ORDER_CANCEL_QUEUE = "order.cancel.queue";
-    public static final String ORDER_CANCEL_ROUTING_KEY = "order.cancel.key";
-
+    // 注意：原 order.delay.exchange / order.delay.queue / order.cancel.exchange / order.cancel.queue
+    // 整条延迟消息链路已移除。超时关单改由 OrderTimeoutTask 定时扫表驱动，
+    // 理由见 OrderTimeoutTask 的类注释：orders 表才是超时的事实来源，
+    // 延迟消息作为唯一依据会在"发消息前宕机"时造成订单永久卡单、库存永久占用。
 
     public static final String ORDER_CANCEL_RESOURCE_EXCHANGE = "order.cancel.resource.exchange";
     public static final String ORDER_CANCEL_RESOURCE_QUEUE = "order.cancel.resource.queue";
@@ -40,7 +36,6 @@ public class RabbitMqConfig {
 
     /** 统一死信交换机：消费重试耗尽后，消息按「原队列名」路由到对应死信队列，便于人工排查 */
     public static final String MALL_DLX = "mall.dlx";
-    public static final String ORDER_CANCEL_DLQ = "order.cancel.dlq";
     public static final String ORDER_CANCEL_RESOURCE_DLQ = "order.cancel.resource.dlq";
 
 
@@ -87,43 +82,6 @@ public class RabbitMqConfig {
     }
 
     @Bean
-    public Exchange orderDelayExchange() {
-        return ExchangeBuilder.directExchange(ORDER_DELAY_EXCHANGE).durable(true).build();
-    }
-
-    @Bean
-    public Queue orderDelayQueue() {
-        Map<String, Object> args = new HashMap<>();
-        args.put("x-dead-letter-exchange", ORDER_CANCEL_EXCHANGE);
-        args.put("x-dead-letter-routing-key", ORDER_CANCEL_ROUTING_KEY);
-        return QueueBuilder.durable(ORDER_DELAY_QUEUE).withArguments(args).build();
-    }
-
-    @Bean
-    public Binding orderDelayBinding(Queue orderDelayQueue, Exchange orderDelayExchange) {
-        return BindingBuilder.bind(orderDelayQueue).to(orderDelayExchange).with(ORDER_DELAY_ROUTING_KEY).noargs();
-    }
-
-    @Bean
-    public Exchange orderCancelExchange() {
-        return ExchangeBuilder.directExchange(ORDER_CANCEL_EXCHANGE).durable(true).build();
-    }
-
-    @Bean
-    public Queue orderCancelQueue() {
-        // 消费重试耗尽后进入 order.cancel.dlq，而不是无限重投
-        Map<String, Object> args = new HashMap<>();
-        args.put("x-dead-letter-exchange", MALL_DLX);
-        args.put("x-dead-letter-routing-key", ORDER_CANCEL_QUEUE);
-        return QueueBuilder.durable(ORDER_CANCEL_QUEUE).withArguments(args).build();
-    }
-
-    @Bean
-    public Binding orderCancelBinding(Queue orderCancelQueue, Exchange orderCancelExchange) {
-        return BindingBuilder.bind(orderCancelQueue).to(orderCancelExchange).with(ORDER_CANCEL_ROUTING_KEY).noargs();
-    }
-
-    @Bean
     public Exchange orderCancelResourceExchange() {
         return ExchangeBuilder.directExchange(ORDER_CANCEL_RESOURCE_EXCHANGE).durable(true).build();
     }
@@ -147,17 +105,6 @@ public class RabbitMqConfig {
     @Bean
     public Exchange mallDeadLetterExchange() {
         return ExchangeBuilder.directExchange(MALL_DLX).durable(true).build();
-    }
-
-    @Bean
-    public Queue orderCancelDlq() {
-        return QueueBuilder.durable(ORDER_CANCEL_DLQ).build();
-    }
-
-    @Bean
-    public Binding orderCancelDlqBinding(Queue orderCancelDlq, Exchange mallDeadLetterExchange) {
-        // 路由键用原队列名，与上面 x-dead-letter-routing-key 对应
-        return BindingBuilder.bind(orderCancelDlq).to(mallDeadLetterExchange).with(ORDER_CANCEL_QUEUE).noargs();
     }
 
     @Bean

@@ -8,17 +8,11 @@ import com.mall.order.mapper.OrderItemMapper;
 import com.mall.order.mapper.OrderMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -34,111 +28,16 @@ public class OrderDelayListener {
     private ProductServiceFeignClient productServiceFeignClient;
 
     @Autowired
-    private RabbitTemplate rabbitTemplate;
-
-    @Autowired
     private RedisTemplate<String, Object> redisTemplate;
-
-    /** 超时取消幂等键前缀 */
-    private static final String ORDER_TIMEOUT_IDEMPOTENT_PREFIX = "order:timeout:idempotent:";
 
     /** 资源恢复（还库存）幂等键前缀 */
     private static final String ORDER_CANCEL_RESOURCE_IDEMPOTENT_PREFIX = "order:cancel:resource:";
 
-    /**
-     * 超时订单自动取消
-     */
-    @Transactional
-    @RabbitListener(queues = "order.cancel.queue")
-    public void handleOrderDelay(Long orderId) {
-        // 幂等标志：同一订单的超时消息只处理一次，防止重复消费导致库存重复恢复
-        String idempotentKey = ORDER_TIMEOUT_IDEMPOTENT_PREFIX + orderId;
-        try {
-            Boolean firstConsume = redisTemplate.opsForValue()
-                    .setIfAbsent(idempotentKey, "1", 24, TimeUnit.HOURS);
-            if (Boolean.FALSE.equals(firstConsume)) {
-                log.info("订单超时消息已处理，跳过重复消费，订单ID: {}", orderId);
-                return;
-            }
-
-            Order order = orderMapper.selectById(orderId);
-
-            if (order == null) {
-                log.warn("订单不存在，订单ID: {}", orderId);
-                return;
-            }
-
-            if (order.getStatus() == 0) {
-                order.setStatus(4);
-                order.setUpdateTime(LocalDateTime.now());
-                orderMapper.updateById(order);
-                log.info("订单超时自动取消成功，订单ID: {}", orderId);
-
-                // 补发资源队列消息，异步恢复库存（事务提交后再发送）
-                List<OrderItem> orderItems = orderItemMapper.selectByOrderId(orderId);
-                if (orderItems != null && !orderItems.isEmpty()) {
-                    sendOrderCancelResourceMessageAfterCommit(orderId, orderItems);
-                } else {
-                    log.warn("订单无商品项，跳过资源恢复，订单ID: {}", orderId);
-                }
-            } else {
-                log.info("订单已支付，无需取消，订单ID: {}", orderId);
-                log.info("订单状态: {}", order.getStatus());
-            }
-
-        } catch (Exception e) {
-            // 处理失败：释放幂等标志并向外抛出。@Transactional 会回滚订单状态，
-            // 消息进入重试；重试耗尽后因队列已挂 DLX 且 default-requeue-rejected=false，落入死信队列
-            redisTemplate.delete(idempotentKey);
-            log.error("处理订单超时失败，订单ID: {}, 错误: {}", orderId, e.getMessage());
-            throw new RuntimeException("处理订单超时失败，订单ID: " + orderId, e);
-        }
-    }
-
-    /**
-     * 发送资源恢复消息到资源队列，由 handleOrderCancel 消费并恢复库存
-     */
-    private void sendOrderCancelResourceMessage(Long orderId, List<OrderItem> orderItems) {
-        Map<String, Object> message = new HashMap<>();
-        message.put("orderId", orderId);
-        List<Map<String, Object>> orderItemList = new ArrayList<>();
-        for (OrderItem item : orderItems) {
-            Map<String, Object> itemMap = new HashMap<>();
-            itemMap.put("productId", item.getProductId());
-            itemMap.put("quantity", item.getQuantity());
-            orderItemList.add(itemMap);
-        }
-        message.put("orderitem", orderItemList);
-        rabbitTemplate.convertAndSend(
-                "order.cancel.resource.exchange",
-                "order.cancel.resource.key",
-                message
-        );
-        log.info("订单资源恢复消息已补发，订单ID: {}", orderId);
-    }
-
-    /**
-     * 在事务提交成功后再发送资源恢复消息。
-     * 保证“订单取消落库”与“资源消息发出”的顺序：避免事务回滚但消息已发出的幽灵消息，
-     * 也避免消费者先于提交读到旧状态；若当前无事务则直接发送。
-     * 注意：afterCommit 阶段事务已提交，此处发送失败只能记日志，需要补偿机制（如本地消息表）兜底。
-     */
-    private void sendOrderCancelResourceMessageAfterCommit(Long orderId, List<OrderItem> orderItems) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            sendOrderCancelResourceMessage(orderId, orderItems);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                try {
-                    sendOrderCancelResourceMessage(orderId, orderItems);
-                } catch (Exception ex) {
-                    log.error("事务提交后发送资源恢复消息失败，订单ID: {}，错误: {}", orderId, ex.getMessage());
-                }
-            }
-        });
-    }
+    // 原 handleOrderDelay() 已移除：超时关单不再由 MQ 延迟消息驱动，
+    // 改由 OrderTimeoutTask 定时扫表 + OrderCancelService.cancelPendingOrder 条件更新完成。
+    // 移走的收益：少一条 exchange/queue/binding、少一个"发消息前宕机即永久卡单"的窗口、
+    // 少一个与支付竞争同一订单的并发取消来源；同时 Redis SETNX 幂等键也一并去掉
+    // （条件更新的影响行数本身就是幂等凭证，且没有"抢到 key 后崩溃导致订单永远不取消"的失败模式）。
 
     /**
      * 支付成功监听器
