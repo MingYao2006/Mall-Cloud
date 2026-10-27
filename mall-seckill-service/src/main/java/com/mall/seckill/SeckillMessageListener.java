@@ -3,7 +3,6 @@ package com.mall.seckill;
 import com.mall.common.BusinessException;
 import com.mall.seckill.service.SeckillService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -57,13 +56,18 @@ public class SeckillMessageListener {
             log.warn("秒杀业务异常: userId={}, couponId={}, msg={}", userId, couponId, e.getMessage());
         } catch (Exception e) {
             // 基础设施异常（DB / Redis 抖动）必须抛出：吞掉就等于这条抢券请求凭空消失。
-            // 交由容器重试，重试耗尽后进 seckill.dlq 由人工或补偿 job 处理。
+            // 这里抛普通 RuntimeException，交给 yml 的 retry 配置接管（3 次，1s/2s/4s 退避）：
+            // 重试耗尽后因 default-requeue-rejected=false 被 reject，再由队列的
+            // x-dead-letter-exchange 投进 seckill.dlq，不会无限重投。
+            //
+            // 注意：不能用 AmqpRejectAndDontRequeueException —— 它的语义是"立刻拒绝、不重回队列"，
+            // 会直接触发 reject 并绕过 RetryTemplate，导致 yml 里的 max-attempts 形同虚设。
             if (dedupKey != null) {
                 // 让重试的那一次能重新占到位，否则去重键会把重试挡在门外
                 redisTemplate.delete(dedupKey);
             }
             log.error("处理秒杀信息失败，转入重试: userId={}, couponId={}", userId, couponId, e);
-            throw new AmqpRejectAndDontRequeueException("秒杀消费失败", e);
+            throw new RuntimeException("秒杀消费失败", e);
         }
     }
 }

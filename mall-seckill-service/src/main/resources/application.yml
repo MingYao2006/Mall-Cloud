@@ -63,7 +63,10 @@ spring:
         retry:
           enabled: true
           max-attempts: 3
-          initial-interval: 2000ms
+          initial-interval: 1000ms
+          # 指数退避：1s -> 2s -> 4s，避免下游还没恢复就被密集重试继续打垮
+          multiplier: 2
+          max-interval: 30000ms
 
   amqp:
     deserialization:
