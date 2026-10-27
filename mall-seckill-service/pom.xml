@@ -186,12 +186,6 @@
             <version>2.0.43</version>
         </dependency>
 
-        <dependency>
-            <groupId>com.alibaba.fastjson2</groupId>
-            <artifactId>fastjson2</artifactId>
-            <version>2.0.43</version>
-        </dependency>
-
         <!-- Mall Common -->
         <dependency>
             <groupId>com.oymy</groupId>
@@ -238,6 +232,21 @@
                             <version>1.18.36</version>
                         </path>
                     </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <!--
+              单元测试运行参数。
+              Mockito 5 默认使用 inline mock maker，需要 ByteBuddy 动态附加 agent 到当前 JVM；
+              JDK 21+ 默认禁止 JVM 自附加，会报
+                "Could not self-attach to current VM using external process"
+              导致所有 @Mock 用例在初始化阶段就失败（不是测试代码的问题）。
+              这里显式放行自附加，并打开 JDK 21 起需要的动态 agent 加载开关。
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-Djdk.attach.allowAttachSelf=true -XX:+EnableDynamicAgentLoading</argLine>
                 </configuration>
             </plugin>
         </plugins>
