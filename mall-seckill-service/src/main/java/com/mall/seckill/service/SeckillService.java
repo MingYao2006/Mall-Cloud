@@ -38,6 +38,10 @@ public class SeckillService {
     private static final String COUPON_STOCK_KEY = "seckill:stock:";
     private static final String SECKILL_USER_KEY = "seckill:user:";
     private static final String SECKILL_LOCK_KEY = "seckill:lock:";
+    /** 抢券结果 key 前缀：seckill:result:{messageId} */
+    public static final String SECKILL_RESULT_KEY = "seckill:result:";
+    /** 结果保留时长（秒）：够前端轮询拿结果即可，不必长期占内存 */
+    public static final long RESULT_TTL_SECONDS = 300;
 
     private static final long CACHE_TIMEOUT = 30; // 30分钟基础过期时间
     private static final int RATE_LIMIT_THRESHOLD = 10; // 用户限流阈值：60秒内最多请求10次
@@ -62,21 +66,68 @@ public class SeckillService {
 
     /**
      * 发送秒杀消息到队列（异步处理）
+     *
+     * @return 本次请求的 messageId，前端拿它去轮询抢券结果
      */
-    public void sendSeckillMessage(Long userId,Long couponId){
+    public String sendSeckillMessage(Long userId,Long couponId){
         // 封装消息数据
         Map<String, Object> message=new HashMap<>();
         message.put("userId",userId);
         message.put("couponId",couponId);
         // 幂等键：MQ 是至少投递一次，重复投递靠它在消费端去重
-        message.put("messageId", UUID.randomUUID().toString());
+        String messageId = UUID.randomUUID().toString();
+        message.put("messageId", messageId);
         // 发送消息
         rabbitTemplate.convertAndSend(
                 RabbitMQConfig.SECKILL_EXCHANGE,      // 交换机
                 RabbitMQConfig.SECKILL_ROUTING_KEY,   // 路由键
                 message                               // 消息内容
         );
-        logger.info("秒杀信息发送成功: userId={}, couponId={}", userId, couponId);
+        logger.info("秒杀信息发送成功: userId={}, couponId={}, messageId={}", userId, couponId, messageId);
+        return messageId;
+    }
+
+    /**
+     * 记录抢券结果，供前端轮询查询。
+     * 只在消费端调用；TTL 到点自动清理，不需要额外补偿。
+     */
+    public void saveSeckillResult(String messageId, boolean success, String message) {
+        if (messageId == null) {
+            return;
+        }
+        try {
+            Map<String, Object> result = new HashMap<>();
+            result.put("status", success ? "SUCCESS" : "FAIL");
+            result.put("message", message);
+            redisTemplate.opsForValue().set(SECKILL_RESULT_KEY + messageId, result,
+                    RESULT_TTL_SECONDS, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            // 结果写失败不能影响主流程：用户只是查不到结果，券已经发了
+            logger.warn("写入秒杀结果失败: messageId={}, 错误: {}", messageId, e.getMessage());
+        }
+    }
+
+    /**
+     * 查询抢券结果。
+     * <p>
+     * 返回类型用 Object 而不是 Map&lt;String,Object&gt;：Redis 的 Jackson 序列化器带类型信息，
+     * 读回来是 HashMap，强转成具体泛型只会多一次 unchecked 警告，这里不做无谓的转换。
+     *
+     * @return null 表示结果尚未产生（还在排队/处理中），前端应继续轮询
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getSeckillResult(String messageId) {
+        if (messageId == null) {
+            return null;
+        }
+        try {
+            Object value = redisTemplate.opsForValue().get(SECKILL_RESULT_KEY + messageId);
+            // 只接受 Map，防止历史脏数据或类型漂移导致 ClassCastException
+            return value instanceof Map ? (Map<String, Object>) value : null;
+        } catch (Exception e) {
+            logger.warn("查询秒杀结果失败: messageId={}, 错误: {}", messageId, e.getMessage());
+            return null;
+        }
     }
 
     /**

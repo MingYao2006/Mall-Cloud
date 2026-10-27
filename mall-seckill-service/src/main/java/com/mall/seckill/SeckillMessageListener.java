@@ -33,8 +33,10 @@ public class SeckillMessageListener {
         Long userId = null;
         Long couponId = null;
         String dedupKey = null;
+        String messageId = null;
         try {
-            Object messageId = message.get("messageId");
+            Object mid = message.get("messageId");
+            messageId = mid == null ? null : mid.toString();
             if (messageId != null) {
                 // 重复投递（ack 丢失、消费超时重投等）会在至少投递一次下再次进来，
                 // 这里靠 messageId 抢占去重；每人限领多张时只有它能挡住同一条消息
@@ -51,9 +53,13 @@ public class SeckillMessageListener {
             couponId = Long.valueOf(message.get("couponId").toString());
             seckillService.seckillCoupon(userId, couponId);
             log.info("秒杀处理成功: userId={}, couponId={}", userId, couponId);
+            // 把结果写给前端轮询，否则用户点完"立即抢购"拿不到任何回执
+            seckillService.saveSeckillResult(messageId, true, "恭喜，抢券成功！");
         } catch (BusinessException e) {
-            // 已抢完 / 超出限领 / 活动已结束都是预期结果，确认掉即可，重试也不会变成功
+            // 已抢完 / 超出限领 / 活动已结束都是预期结果，确认掉即可，重试也不会变成功。
+            // 但必须把失败原因写进结果，否则用户永远只看到"已提交"、不知道已经失败。
             log.warn("秒杀业务异常: userId={}, couponId={}, msg={}", userId, couponId, e.getMessage());
+            seckillService.saveSeckillResult(messageId, false, e.getMessage());
         } catch (Exception e) {
             // 基础设施异常（DB / Redis 抖动）必须抛出：吞掉就等于这条抢券请求凭空消失。
             // 这里抛普通 RuntimeException，交给 yml 的 retry 配置接管（3 次，1s/2s/4s 退避）：

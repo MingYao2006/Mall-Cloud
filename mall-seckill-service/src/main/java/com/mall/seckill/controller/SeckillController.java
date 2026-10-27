@@ -12,6 +12,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * 安全说明：
  * userId 统一通过 @RequestHeader("X-User-Id") 从网关注入的请求头获取，
@@ -61,10 +64,39 @@ public class SeckillController {
     public Result<String> seckillCoupon(
             @RequestHeader("X-User-Id") @NotNull(message = "用户ID不能为空") Long userId,
             @PathVariable @NotNull(message = "优惠券ID不能为空") Long couponId) {
-        // 发送消息到 RabbitMQ
-        seckillService.sendSeckillMessage(userId, couponId);
+        // 发送消息到 RabbitMQ，返回 messageId 供前端轮询结果
+        String messageId = seckillService.sendSeckillMessage(userId, couponId);
         // 直接返回，不等待处理完成
-        return Result.success("秒杀请求已提交，正在处理中...");
+        return Result.success(messageId);
+    }
+
+    /**
+     * 查询抢券结果（前端用 messageId 轮询）。
+     * <p>
+     * 三种返回：
+     * · status=SUCCESS / FAIL：已有结果，停止轮询；
+     * · pending=true：还在排队或处理中，继续轮询；
+     * · 结果已过期（超过 5 分钟）：也返回 pending，提示用户去"我的优惠券"确认。
+     * <p>
+     * 之所以不做成"阻塞等待结果"：秒杀的核心价值就是把同步链路削峰成异步，
+     * 入口若阻塞等待，MQ 的意义就没了，而且高并发下会把 Tomcat 线程占满。
+     */
+    @GetMapping("/result/{messageId}")
+    @Operation(summary = "查询抢券结果")
+    public Result<Map<String, Object>> getSeckillResult(
+            @RequestHeader("X-User-Id") @NotNull(message = "用户ID不能为空") Long userId,
+            @PathVariable String messageId) {
+        Map<String, Object> result = seckillService.getSeckillResult(messageId);
+        if (result == null) {
+            // 还没产生结果，或已过 TTL：交给前端继续轮询 / 引导去券列表确认
+            Map<String, Object> pending = new HashMap<>();
+            pending.put("pending", true);
+            pending.put("message", "抢券请求处理中，请稍候");
+            return Result.success(pending);
+        }
+        Map<String, Object> data = new HashMap<>(result);
+        data.put("pending", false);
+        return Result.success(data);
     }
 
     @GetMapping("/doSeckill")

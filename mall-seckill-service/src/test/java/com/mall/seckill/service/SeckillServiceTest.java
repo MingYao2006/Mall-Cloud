@@ -23,16 +23,20 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -53,6 +57,8 @@ class SeckillServiceTest {
     private static final String STOCK_KEY = "seckill:stock:" + COUPON_ID;
     private static final String USER_KEY = "seckill:user:" + COUPON_ID + ":" + USER_ID;
     private static final String LOCK_KEY = "seckill:lock:" + COUPON_ID;
+    private static final String MSG_ID = "test-message-id";
+    private static final String SECKILL_RESULT_KEY = SeckillService.SECKILL_RESULT_KEY;
 
     @Mock
     private RedisTemplate redisTemplate;
@@ -215,9 +221,9 @@ class SeckillServiceTest {
     }
 
     @Test
-    @DisplayName("MQ 消息必须携带幂等键 messageId，供消费端去重")
+    @DisplayName("MQ 消息必须携带幂等键 messageId，且返回值与消息体一致（供前端轮询结果）")
     void sendSeckillMessageCarriesMessageId() {
-        seckillService.sendSeckillMessage(USER_ID, COUPON_ID);
+        String returnedId = seckillService.sendSeckillMessage(USER_ID, COUPON_ID);
 
         ArgumentCaptor<Map> captor = ArgumentCaptor.forClass(Map.class);
         verify(rabbitTemplate).convertAndSend(
@@ -230,5 +236,35 @@ class SeckillServiceTest {
         assertEquals(COUPON_ID, message.get("couponId"));
         assertNotNull(message.get("messageId"), "缺少幂等键，MQ 至少投递一次会导致重复发货");
         assertNotEquals("", message.get("messageId"));
+        // 入口返回的 messageId 必须就是消息体里那个，否则前端拿着它查不到结果
+        assertEquals(message.get("messageId"), returnedId, "返回值与消息体的 messageId 不一致");
+    }
+
+    @Test
+    @DisplayName("抢券结果：未产生时返回 null，已产生时可读回")
+    void seckillResultRoundTrip() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        when(valueOperations.get(SECKILL_RESULT_KEY + MSG_ID)).thenReturn(null);
+        assertNull(seckillService.getSeckillResult(MSG_ID), "结果未产生时应返回 null，让前端继续轮询");
+
+        Map<String, Object> stored = new HashMap<>();
+        stored.put("status", "SUCCESS");
+        stored.put("message", "恭喜，抢券成功！");
+        when(valueOperations.get(SECKILL_RESULT_KEY + MSG_ID)).thenReturn(stored);
+
+        Map<String, Object> got = seckillService.getSeckillResult(MSG_ID);
+        assertNotNull(got);
+        assertEquals("SUCCESS", got.get("status"));
+    }
+
+    @Test
+    @DisplayName("抢券结果：写入失败不能影响主流程（券已发出去，不能让异常冒泡）")
+    void saveSeckillResultSwallowsRedisFailure() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        doThrow(new RuntimeException("redis down"))
+                .when(valueOperations).set(any(), any(), anyLong(), any(TimeUnit.class));
+
+        assertDoesNotThrow(() -> seckillService.saveSeckillResult(MSG_ID, true, "ok"));
     }
 }
