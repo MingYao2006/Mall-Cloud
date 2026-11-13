@@ -71,7 +71,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
-  document.title = to.meta.title ? `${to.meta.title} - 商城管理后台` : '商城管理后台'
+  document.title = to.meta.title ? `${to.meta.title} - 商城运营台` : '商城运营台'
   const store = useAdminStore()
   if (to.meta.public) {
     if (store.token && to.path === '/login') {

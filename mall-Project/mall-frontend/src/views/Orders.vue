@@ -544,3 +544,137 @@ onMounted(load)
   }
 }
 </style>
+
+<style scoped>
+/* 集物商店 · 订单账页 */
+.order-page {
+  padding-top: 30px;
+}
+
+.page-head {
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 21px;
+}
+
+.page-head .page-title {
+  font-size: 31px;
+}
+
+.page-sub {
+  color: var(--sage);
+  font-size: 12px;
+}
+
+.filter-bar {
+  gap: 0;
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.filter-btn {
+  padding: 9px 17px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--sage);
+  font-size: 12px;
+}
+
+.filter-btn:hover {
+  border-color: transparent;
+  color: var(--pine-800);
+}
+
+.filter-btn.active {
+  border-bottom-color: var(--gold);
+  background: transparent;
+  color: var(--pine-800);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.order-card {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 4px 4px 0 rgba(22, 58, 46, 0.07);
+}
+
+.order-card:hover {
+  box-shadow: 6px 6px 0 rgba(22, 58, 46, 0.1);
+}
+
+.order-head {
+  border-bottom: 1px solid var(--line);
+  color: var(--sage);
+  font-size: 11px;
+}
+
+.order-no {
+  color: var(--pine-800);
+  font-family: var(--font-num);
+  font-size: 12px;
+}
+
+.status-badge {
+  border: 1px solid transparent;
+  border-radius: 2px;
+  font-size: 11px;
+}
+
+.status-badge.is-warning {
+  border-color: rgba(200, 74, 54, 0.2);
+}
+
+.status-badge.is-info {
+  border-color: var(--line);
+}
+
+.og-img {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--porcelain-deep);
+  color: var(--sage-light);
+}
+
+.og-title {
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.amount-value {
+  color: var(--vermilion);
+  font-family: var(--font-num);
+  font-size: 23px;
+  font-weight: 600;
+}
+
+.btn-pay,
+.btn-ghost {
+  border-radius: 2px;
+  font-size: 12px;
+}
+
+.btn-pay {
+  background: var(--pine-800);
+}
+
+.btn-pay:hover {
+  box-shadow: 3px 3px 0 var(--gold);
+}
+
+.btn-ghost {
+  border-color: var(--line-strong);
+  color: var(--pine-700);
+}
+
+.btn-ghost:hover {
+  border-color: var(--pine-700);
+  background: var(--paper-warm);
+  color: var(--pine-800);
+}
+</style>

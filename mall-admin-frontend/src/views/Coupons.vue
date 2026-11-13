@@ -23,53 +23,49 @@
     </div>
 
     <el-table :data="tableData" v-loading="loading" stripe>
-      <el-table-column prop="id" label="ID" width="60" />
-      <el-table-column prop="name" label="优惠券名称" min-width="160" show-overflow-tooltip />
-      <el-table-column label="类型" width="90">
+      <el-table-column prop="id" label="ID" width="50" />
+      <el-table-column prop="name" label="优惠券名称" min-width="140" show-overflow-tooltip />
+      <el-table-column label="类型" width="76">
         <template #default="{ row }">{{ typeText(row.type) }}</template>
       </el-table-column>
-      <el-table-column label="面额/折扣" width="100">
+      <el-table-column label="优惠" width="150">
         <template #default="{ row }">
-          {{ row.type === 2 ? row.value + ' 折' : '¥' + row.value }}
+          <div class="coupon-value">{{ row.type === 2 ? row.value + ' 折' : '¥' + row.value }}</div>
+          <div class="coupon-meta">
+            {{ Number(row.minAmount) > 0 ? '满¥' + row.minAmount : '无门槛' }}，每人限 {{ row.limitPerUser }} 张
+          </div>
         </template>
       </el-table-column>
-      <el-table-column label="使用门槛" width="100">
+      <el-table-column label="库存 / 已领" width="128">
         <template #default="{ row }">
-          {{ Number(row.minAmount) > 0 ? '满¥' + row.minAmount : '无门槛' }}
+          <div class="coupon-stock">
+            <span :class="{ 'is-empty': Number(row.availableStock) <= 0 }">
+              {{ row.availableStock }} / {{ row.totalStock }}
+            </span>
+            <em>已领 {{ claimedCount(row) }}</em>
+          </div>
         </template>
       </el-table-column>
-      <el-table-column label="库存(剩余/总)" width="130">
+      <el-table-column label="有效期" width="156">
         <template #default="{ row }">
-          <span :style="{ color: Number(row.availableStock) <= 0 ? '#f56c6c' : 'inherit' }">
-            {{ row.availableStock }}
-          </span>
-          / {{ row.totalStock }}
+          <div class="coupon-date">{{ fmtTime(row.startTime) }}</div>
+          <div class="coupon-date is-secondary">至 {{ fmtTime(row.endTime) }}</div>
         </template>
       </el-table-column>
-      <el-table-column label="已领取" width="80">
-        <template #default="{ row }">{{ claimedCount(row) }}</template>
-      </el-table-column>
-      <el-table-column prop="limitPerUser" label="每人限领" width="90" />
-      <el-table-column label="有效期" width="200">
-        <template #default="{ row }">
-          <div>{{ fmtTime(row.startTime) }}</div>
-          <div style="color: #909399;">至 {{ fmtTime(row.endTime) }}</div>
-        </template>
-      </el-table-column>
-      <el-table-column label="状态" width="110">
+      <el-table-column label="状态" width="98">
         <template #default="{ row }">
           <span :class="['status-tag', row.displayStatusType || 'info']">
             {{ row.displayStatusText || '未知' }}
           </span>
-          <div style="font-size: 12px; color: #909399; margin-top: 2px;">
+          <div class="coupon-status-sub">
             {{ row.status === 1 ? '已上架' : row.status === 2 ? '已停用' : '未上架' }}
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="260" fixed="right">
+      <el-table-column label="操作" width="250" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openDialog(row)">编辑</el-button>
-          <el-dropdown style="margin: 0 12px 0 12px;" @command="cmd => handleStatusCommand(row, cmd)">
+          <el-dropdown style="margin: 0 8px;" @command="cmd => handleStatusCommand(row, cmd)">
             <el-button link type="primary">状态<el-icon><ArrowDown /></el-icon></el-button>
             <template #dropdown>
               <el-dropdown-menu>
@@ -477,23 +473,79 @@ onMounted(() => loadPage())
 .form-tip {
   margin-left: 10px;
   font-size: 12px;
-  color: #909399;
+  color: var(--sage);
+}
+
+.coupon-value {
+  color: var(--pine-800);
+  font-family: var(--font-num);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.coupon-meta {
+  margin-top: 2px;
+  color: var(--sage);
+  font-size: 10px;
+}
+
+.coupon-stock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.coupon-stock span {
+  color: var(--pine-800);
+  font-family: var(--font-num);
+  font-size: 13px;
+}
+
+.coupon-stock span.is-empty {
+  color: var(--vermilion);
+}
+
+.coupon-stock em {
+  color: var(--sage);
+  font-family: var(--font-num);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.coupon-date {
+  color: var(--pine-800);
+  font-family: var(--font-num);
+  font-size: 11px;
+}
+
+.coupon-date.is-secondary {
+  color: var(--sage);
+}
+
+.coupon-status-sub {
+  margin-top: 2px;
+  color: var(--sage);
+  font-size: 10px;
 }
 
 .stat-card {
-  border: 1px solid #ebeef5;
-  border-radius: 4px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--porcelain);
   padding: 10px 12px;
   text-align: center;
 }
 
 .stat-label {
   font-size: 12px;
-  color: #909399;
+  color: var(--sage);
   margin-bottom: 4px;
 }
 
 .stat-value {
+  color: var(--pine-800);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
   font-size: 20px;
   font-weight: 600;
 }

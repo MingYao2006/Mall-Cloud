@@ -402,3 +402,187 @@ onUnmounted(() => {
   letter-spacing: 0.5px;
 }
 </style>
+
+<style scoped>
+/* 集物商店 · 限时柜台 */
+.seckill-page {
+  padding: 34px 0 54px;
+}
+
+.seckill-banner {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 26px;
+  padding: 28px 34px;
+  border: 1px solid var(--pine-700);
+  border-top: 3px solid var(--gold);
+  border-radius: 2px;
+  background: var(--pine-800);
+  box-shadow: 6px 6px 0 rgba(22, 58, 46, 0.12);
+}
+
+.seckill-banner::before {
+  top: auto;
+  right: 28px;
+  bottom: -52px;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  content: '时';
+  color: rgba(251, 252, 248, 0.05);
+  font-family: var(--font-display);
+  font-size: 180px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.banner-left {
+  gap: 28px;
+}
+
+.banner-left h2 {
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-size: 29px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.cd-label {
+  color: rgba(251, 252, 248, 0.62);
+  font-size: 11px;
+}
+
+.cd-block {
+  min-width: 46px;
+  padding: 6px 10px;
+  border: 1px solid rgba(251, 252, 248, 0.22);
+  border-radius: 2px;
+  background: var(--paper);
+  color: var(--pine-800);
+  font-family: var(--font-num);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.cd-sep {
+  color: var(--gold);
+  font-family: var(--font-num);
+  font-size: 22px;
+}
+
+.banner-right {
+  position: relative;
+  z-index: 1;
+  color: rgba(251, 252, 248, 0.72);
+  font-size: 12px;
+}
+
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  background: var(--gold);
+}
+
+.scroll-wrapper {
+  gap: 18px;
+}
+
+.seckill-card {
+  width: 272px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 4px 4px 0 rgba(22, 58, 46, 0.07);
+}
+
+.seckill-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 7px 7px 0 rgba(22, 58, 46, 0.1);
+}
+
+.seckill-card.can-buy:hover {
+  box-shadow: 7px 7px 0 rgba(228, 166, 47, 0.45);
+}
+
+.sk-img {
+  height: 230px;
+  border-bottom: 1px solid var(--line);
+  background: var(--porcelain-deep);
+}
+
+.sk-tag {
+  top: 10px;
+  right: 10px;
+  padding: 3px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--paper);
+  color: var(--pine-700);
+  font-size: 10px;
+}
+
+.sk-tag.hot {
+  border-color: var(--vermilion);
+  background: var(--vermilion);
+  color: var(--paper);
+}
+
+.sk-info {
+  padding: 16px;
+}
+
+.sk-name {
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sk-current {
+  color: var(--vermilion);
+  font-family: var(--font-num);
+  font-size: 27px;
+  font-weight: 600;
+}
+
+.sk-original {
+  color: var(--text-hint);
+  font-family: var(--font-num);
+}
+
+.sk-bar {
+  height: 5px;
+  border-radius: 1px;
+  background: var(--porcelain-deep);
+}
+
+.sk-bar-inner {
+  border-radius: 1px;
+  background: var(--gold);
+}
+
+.sk-sold {
+  color: var(--sage);
+  font-size: 10px;
+}
+
+.sk-btn {
+  font-size: 13px;
+}
+
+@media (max-width: 768px) {
+  .seckill-banner {
+    padding: 22px 20px;
+  }
+
+  .banner-left {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+}
+</style>

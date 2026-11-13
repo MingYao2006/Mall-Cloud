@@ -1,63 +1,63 @@
 <template>
   <div class="login-page">
-    <!-- 背景光斑 -->
-    <span class="orb orb-1"></span>
-    <span class="orb orb-2"></span>
-    <span class="orb orb-3"></span>
-
-    <div class="login-card glass-specular">
-      <!-- 左侧品牌区 -->
+    <div class="login-shell">
       <aside class="brand-side">
         <div class="brand-head">
-          <div class="brand-mark">
-            <el-icon :size="18"><Shop /></el-icon>
+          <span class="brand-seal" aria-hidden="true">集</span>
+          <div>
+            <strong>商城运营台</strong>
+            <span>运营管理端</span>
           </div>
-          <span class="brand-name">商城管理后台</span>
         </div>
 
-        <h1 class="brand-title">数据驱动的<br />商城运营台</h1>
-        <p class="brand-desc">商品、订单、评论、优惠券一体化管理</p>
+        <div class="brand-copy">
+          <h1 class="brand-title">商品、订单、评价，<br />一处打理。</h1>
+          <p class="brand-desc">从今天的营业数据，到每一条待审评论，进入后一次处理。</p>
 
-        <ul class="brand-points">
-          <li v-for="point in highlights" :key="point.title">
-            <span class="point-icon">
-              <el-icon><component :is="point.icon" /></el-icon>
-            </span>
-            <span class="point-text">
-              <strong>{{ point.title }}</strong>
-              <em>{{ point.desc }}</em>
-            </span>
-          </li>
-        </ul>
+          <ul class="brand-points">
+            <li v-for="point in highlights" :key="point.title">
+              <span class="point-icon">
+                <el-icon :size="15"><component :is="point.icon" /></el-icon>
+              </span>
+              <span class="point-text">
+                <strong>{{ point.title }}</strong>
+                <em>{{ point.desc }}</em>
+              </span>
+            </li>
+          </ul>
+        </div>
+        <span class="brand-watermark" aria-hidden="true">集</span>
       </aside>
 
-      <!-- 右侧表单区 -->
       <section class="form-side">
-        <h2 class="form-title">管理员登录</h2>
-        <p class="form-sub">请使用管理员账号登录</p>
+        <div class="form-head">
+          <span class="form-mark" aria-hidden="true"></span>
+          <h2>管理员登录</h2>
+          <p>使用管理员账号进入运营台。</p>
+        </div>
 
         <el-form
           ref="formRef"
           :model="form"
           :rules="rules"
-          label-width="0"
+          label-position="top"
           @submit.prevent="handleLogin"
         >
-          <el-form-item prop="username">
+          <el-form-item label="用户名" prop="username" class="ledger-field">
             <el-input
               v-model="form.username"
-              placeholder="用户名"
-              prefix-icon="User"
+              placeholder="请输入用户名"
               size="large"
+              autocomplete="username"
             />
           </el-form-item>
-          <el-form-item prop="password">
+          <el-form-item label="密码" prop="password" class="ledger-field">
             <el-input
               v-model="form.password"
               type="password"
-              placeholder="密码"
-              prefix-icon="Lock"
+              placeholder="请输入密码"
               size="large"
+              autocomplete="current-password"
               show-password
               @keyup.enter="handleLogin"
             />
@@ -69,18 +69,18 @@
             :loading="loading"
             @click="handleLogin"
           >
-            登 录
+            登录运营台
           </el-button>
         </el-form>
 
-        <p class="form-foot">登录状态由 JWT 维护，仅管理员（role=1）可访问</p>
+        <p class="form-foot">登录状态由 JWT 维护。仅管理员（role=1）可进入运营台。</p>
       </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
 import { ElMessage } from 'element-plus'
@@ -103,12 +103,12 @@ const rules = {
 const highlights = [
   { icon: 'Goods', title: '商品与分类', desc: '上下架、库存与分类维护' },
   { icon: 'List', title: '订单与售后', desc: '分页检索、状态流转与取消' },
-  { icon: 'ChatDotSquare', title: '评论审核', desc: '待审评论一键通过 / 拒绝' }
+  { icon: 'ChatDotSquare', title: '评论审核', desc: '待审评论一键通过或拒绝' }
 ]
 
 async function handleLogin() {
   if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
+  await formRef.value.validate(async valid => {
     if (!valid) return
     loading.value = true
     try {
@@ -116,7 +116,7 @@ async function handleLogin() {
       ElMessage.success('登录成功')
       router.push('/')
     } catch (e) {
-      // 错误已在 store/拦截器中处理
+      // 错误已在 store / 拦截器中处理
     } finally {
       loading.value = false
     }
@@ -127,250 +127,307 @@ async function handleLogin() {
 <style scoped>
 .login-page {
   position: relative;
-  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px 24px;
-  overflow: hidden;
+  min-height: 100vh;
+  padding: 32px 24px;
 }
 
-/* ---------------- 背景光斑 ---------------- */
-.orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(64px);
-  pointer-events: none;
+.login-page::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto;
+  height: 5px;
+  background: var(--gold);
 }
 
-.orb-1 {
-  width: 420px;
-  height: 420px;
-  top: -140px;
-  left: -110px;
-  background: rgba(91, 111, 216, 0.42);
-  animation: orb-drift 18s ease-in-out infinite;
-}
-
-.orb-2 {
-  width: 380px;
-  height: 380px;
-  bottom: -150px;
-  right: -90px;
-  background: rgba(186, 140, 235, 0.38);
-  animation: orb-drift 23s ease-in-out infinite reverse;
-}
-
-.orb-3 {
-  width: 260px;
-  height: 260px;
-  top: 46%;
-  right: 14%;
-  background: rgba(110, 200, 226, 0.34);
-  animation: orb-drift 15s ease-in-out infinite;
-}
-
-@keyframes orb-drift {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(22px, -26px, 0) scale(1.08);
-  }
-}
-
-/* ---------------- 玻璃卡片 ---------------- */
-.login-card {
-  position: relative;
-  z-index: 1;
-  display: flex;
+.login-shell {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
   width: 100%;
-  max-width: 920px;
-  min-height: 540px;
-  border-radius: 26px;
+  max-width: 1040px;
+  min-height: 600px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.62);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  backdrop-filter: blur(22px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  box-shadow: 0 24px 70px rgba(31, 42, 71, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  animation: card-in 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 10px 10px 0 rgba(22, 58, 46, 0.1);
+  animation: rise-in 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
 
-@keyframes card-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 24px, 0) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-/* ---------------- 左侧品牌区 ---------------- */
 .brand-side {
   position: relative;
-  width: 46%;
-  padding: 48px 40px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  background: linear-gradient(150deg, rgba(91, 111, 216, 0.14), rgba(186, 140, 235, 0.12));
-  border-right: 1px solid rgba(255, 255, 255, 0.6);
+  overflow: hidden;
+  padding: 40px 44px;
+  color: var(--paper);
+  background: var(--pine-900);
+}
+
+.brand-side::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: var(--gold);
 }
 
 .brand-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 26px;
-}
-
-.brand-mark {
-  width: 34px;
-  height: 34px;
-  border-radius: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  background: linear-gradient(135deg, #5b6fd8, #8f5fd0);
-  box-shadow: 0 6px 16px rgba(91, 111, 216, 0.35);
-}
-
-.brand-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: #1f2a47;
-  letter-spacing: 0.4px;
-}
-
-.brand-title {
-  font-size: 30px;
-  line-height: 1.32;
-  font-weight: 700;
-  color: #1f2a47;
-  margin-bottom: 12px;
-}
-
-.brand-desc {
-  font-size: 14px;
-  color: #6b769a;
-  margin-bottom: 30px;
-}
-
-.brand-points {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.brand-points li {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.point-icon {
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border-radius: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #5b6fd8;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 4px 12px rgba(31, 42, 71, 0.08);
+.brand-head strong {
+  display: block;
+  color: var(--paper-warm);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
 }
 
-.point-text {
+.brand-head span:not(.brand-seal) {
+  display: block;
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.brand-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 370px;
+  margin: auto 0;
+}
+
+.brand-title {
+  color: var(--paper-warm);
+  font-family: var(--font-display);
+  font-size: clamp(28px, 2.6vw, 36px);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+}
+
+.brand-desc {
+  margin-top: 14px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.brand-points {
+  margin-top: 34px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  list-style: none;
+}
+
+.brand-points li {
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.point-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 1px solid rgba(228, 166, 47, 0.4);
+  border-radius: 2px;
+  color: var(--gold);
 }
 
 .point-text strong {
-  font-size: 14px;
-  color: #1f2a47;
+  display: block;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
   font-weight: 600;
 }
 
 .point-text em {
-  font-size: 12px;
+  display: block;
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
   font-style: normal;
-  color: #8892ad;
 }
 
-/* ---------------- 右侧表单区 ---------------- */
+.brand-watermark {
+  position: absolute;
+  right: -40px;
+  bottom: -70px;
+  color: rgba(255, 255, 255, 0.035);
+  font-family: var(--font-display);
+  font-size: 300px;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
 .form-side {
-  flex: 1;
-  padding: 56px 44px;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  padding: 48px 52px;
 }
 
-.form-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: #1f2a47;
-  margin-bottom: 6px;
+.form-head h2 {
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
 }
 
-.form-sub {
-  font-size: 13px;
-  color: #8892ad;
-  margin-bottom: 28px;
+.form-head p {
+  margin-top: 6px;
+  color: var(--sage);
+  font-size: 12px;
+}
+
+.form-mark {
+  display: block;
+  width: 26px;
+  height: 3px;
+  margin-bottom: 18px;
+  background: var(--gold);
+}
+
+.form-side :deep(.el-form) {
+  margin-top: 30px;
+}
+
+.form-side :deep(.ledger-field) {
+  margin-bottom: 22px;
+}
+
+.form-side :deep(.el-form-item__label) {
+  padding-bottom: 6px;
+  color: var(--pine-700);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
 }
 
 .form-side :deep(.el-input__wrapper) {
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9) inset;
-  border-radius: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-strong);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.form-side :deep(.el-input__wrapper:hover) {
+  border-bottom-color: var(--pine-600);
+  box-shadow: none;
 }
 
 .form-side :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px var(--brand-500) inset;
+  border-bottom-color: var(--pine-800);
+  box-shadow: 0 1px 0 0 var(--pine-800);
+}
+
+.form-side :deep(.el-input__inner) {
+  height: 30px;
+  color: var(--pine-800);
+  font-size: 14px;
+}
+
+.form-side :deep(.el-input__inner::placeholder) {
+  color: var(--sage-light);
+}
+
+.form-side :deep(.el-form-item.is-error .el-input__wrapper) {
+  border-bottom-color: var(--vermilion);
+  box-shadow: 0 1px 0 0 var(--vermilion);
+}
+
+.form-side :deep(.el-form-item__error) {
+  padding-top: 4px;
+  color: var(--vermilion);
+  font-size: 11px;
 }
 
 .login-btn {
   width: 100%;
-  margin-top: 6px;
-  height: 44px;
-  border-radius: 12px;
+  height: 46px;
+  margin-top: 4px;
+  border-radius: 2px;
+  box-shadow: 3px 3px 0 rgba(22, 58, 46, 0.14);
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 4px;
-  background: linear-gradient(135deg, #5b6fd8, #4356c4);
-  border: none;
-  box-shadow: 0 10px 24px rgba(91, 111, 216, 0.32);
-}
-
-.login-btn:hover {
-  background: linear-gradient(135deg, #6b7ee0, #4a5dcb);
+  letter-spacing: 0.06em;
 }
 
 .form-foot {
   margin-top: 22px;
-  font-size: 12px;
-  color: #a8b0c8;
-  text-align: center;
+  color: var(--sage-light);
+  font-size: 10px;
+  line-height: 1.7;
 }
 
-@media (max-width: 860px) {
+@media (max-width: 900px) {
+  .login-shell {
+    grid-template-columns: 1fr;
+    max-width: 520px;
+    min-height: 0;
+  }
+
   .brand-side {
+    padding: 26px 28px 24px;
+  }
+
+  .brand-copy {
+    margin: 28px 0 0;
+  }
+
+  .brand-title {
+    font-size: 28px;
+  }
+
+  .brand-desc {
+    margin-top: 10px;
+  }
+
+  .brand-points {
     display: none;
   }
 
-  .login-card {
-    max-width: 420px;
+  .brand-watermark {
+    right: -30px;
+    bottom: -55px;
+    font-size: 220px;
   }
 
   .form-side {
-    padding: 44px 28px;
+    padding: 34px 28px 36px;
+  }
+}
+
+@media (max-width: 520px) {
+  .login-page {
+    padding: 20px 14px;
+  }
+
+  .brand-side {
+    padding: 22px 22px 20px;
+  }
+
+  .brand-title {
+    font-size: 24px;
+  }
+
+  .form-side {
+    padding: 28px 22px 30px;
   }
 }
 </style>

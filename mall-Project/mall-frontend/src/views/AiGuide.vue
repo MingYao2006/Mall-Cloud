@@ -268,3 +268,141 @@ function clearChat() {
   padding: 0 22px;
 }
 </style>
+
+<style scoped>
+/* 集物商店 · 柜台问询 */
+.ai-guide {
+  margin: 28px auto;
+}
+
+.chat-card {
+  height: calc(100vh - 190px);
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 7px 7px 0 rgba(22, 58, 46, 0.09);
+}
+
+.chat-header {
+  gap: 11px;
+  padding: 16px 19px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.chat-header .logo {
+  color: var(--pine-700);
+}
+
+.head-text .title {
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.head-text .sub {
+  color: var(--sage);
+  font-size: 10px;
+}
+
+.clear-btn {
+  color: var(--sage);
+  font-size: 11px;
+}
+
+.chat-body {
+  padding: 20px;
+  background: var(--porcelain);
+  background-image: linear-gradient(rgba(22, 58, 46, 0.025) 1px, transparent 1px);
+  background-size: 100% 72px;
+}
+
+.welcome {
+  color: var(--sage);
+}
+
+.welcome-title {
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.welcome-desc {
+  color: var(--sage);
+  font-size: 12px;
+}
+
+.chip {
+  border-color: var(--line);
+  background: var(--paper);
+  color: var(--pine-700);
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--pine-700);
+  background: var(--paper-warm);
+}
+
+.avatar {
+  width: 31px;
+  height: 31px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--brand-soft);
+  color: var(--pine-700);
+}
+
+.msg.user .avatar {
+  border-color: var(--pine-700);
+  background: var(--pine-800);
+  color: var(--paper);
+}
+
+.bubble {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--paper);
+  color: var(--text-body);
+  font-size: 13px;
+}
+
+.msg.user .bubble {
+  border-color: var(--pine-700);
+  background: var(--pine-700);
+  color: var(--paper);
+}
+
+.caret {
+  width: 5px;
+  background: var(--gold);
+}
+
+.chat-footer {
+  padding: 13px 19px;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.send-btn {
+  height: 52px;
+  border-radius: 2px;
+}
+
+@media (max-width: 620px) {
+  .ai-guide {
+    margin: 18px auto;
+    padding: 0 12px;
+  }
+
+  .chat-card {
+    height: calc(100vh - 160px);
+  }
+
+  .bubble {
+    max-width: 82%;
+  }
+}
+</style>

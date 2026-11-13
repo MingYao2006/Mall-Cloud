@@ -16,7 +16,7 @@
 
     <el-table :data="tableData" v-loading="loading" stripe>
       <el-table-column prop="id" label="订单ID" width="80" />
-      <el-table-column prop="orderNo" label="订单号" width="180" />
+      <el-table-column prop="orderNo" label="订单号" width="170" />
       <el-table-column prop="userId" label="用户ID" width="80" />
       <el-table-column prop="totalAmount" label="总金额" width="100">
         <template #default="{ row }">¥{{ row.totalAmount }}</template>
@@ -31,8 +31,8 @@
       </el-table-column>
       <el-table-column prop="receiverName" label="收货人" width="100" />
       <el-table-column prop="receiverPhone" label="联系电话" width="120" />
-      <el-table-column prop="createTime" label="创建时间" min-width="160" />
-      <el-table-column label="操作" width="120" fixed="right">
+      <el-table-column prop="createTime" label="创建时间" width="160" />
+      <el-table-column label="操作" width="110" fixed="right">
         <template #default="{ row }">
           <el-button size="small" @click="viewDetail(row)">详情</el-button>
           <el-button v-if="row.status === 0" size="small" type="warning" @click="handleCancel(row)">取消</el-button>

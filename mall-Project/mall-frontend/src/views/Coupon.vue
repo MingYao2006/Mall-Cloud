@@ -558,3 +558,216 @@ onUnmounted(() => {
   }
 }
 </style>
+
+<style scoped>
+/* 集物商店 · 领券柜台 */
+.coupon-page {
+  padding: 34px 0 54px;
+}
+
+.page-title {
+  margin-bottom: 22px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--line);
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 31px;
+  font-weight: 600;
+}
+
+.countdown-banner {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 24px;
+  padding: 28px 34px;
+  border: 1px solid var(--pine-700);
+  border-top: 3px solid var(--gold);
+  border-radius: 2px;
+  background: var(--pine-800);
+  box-shadow: 6px 6px 0 rgba(22, 58, 46, 0.12);
+}
+
+.countdown-banner::after {
+  content: '惠';
+  position: absolute;
+  right: 130px;
+  bottom: -46px;
+  color: rgba(251, 252, 248, 0.05);
+  font-family: var(--font-display);
+  font-size: 160px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.banner-left {
+  gap: 28px;
+}
+
+.banner-left h2 {
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-size: 29px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.cd-label {
+  color: rgba(251, 252, 248, 0.62);
+  font-size: 11px;
+}
+
+.cd-block {
+  min-width: 44px;
+  padding: 6px 10px;
+  border: 1px solid rgba(251, 252, 248, 0.22);
+  border-radius: 2px;
+  background: var(--paper);
+  color: var(--pine-800);
+  font-family: var(--font-num);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.cd-sep {
+  color: var(--gold);
+  font-family: var(--font-num);
+  font-size: 22px;
+}
+
+.banner-right {
+  position: relative;
+  z-index: 1;
+}
+
+.banner-right .el-button {
+  border: 1px solid var(--gold);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--paper);
+  font-size: 12px;
+}
+
+.banner-right .el-button:hover {
+  background: var(--gold);
+  color: var(--pine-900);
+}
+
+.coupon-list {
+  gap: 15px;
+}
+
+.coupon-card {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 4px 4px 0 rgba(22, 58, 46, 0.07);
+}
+
+.coupon-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 7px 7px 0 rgba(22, 58, 46, 0.1);
+}
+
+.coupon-card.can-buy:hover {
+  box-shadow: 7px 7px 0 rgba(228, 166, 47, 0.45);
+}
+
+.coupon-left {
+  width: 200px;
+  padding: 26px 22px;
+}
+
+.coupon-left.type-discount {
+  background: var(--pine-800);
+}
+
+.coupon-left.type-percent {
+  background: var(--gold-deep);
+}
+
+.coupon-left.type-free {
+  background: var(--sage);
+}
+
+.coupon-value .currency {
+  font-family: var(--font-num);
+  font-size: 20px;
+}
+
+.coupon-value .amount {
+  font-family: var(--font-num);
+  font-size: 46px;
+  font-weight: 600;
+}
+
+.coupon-condition {
+  font-size: 12px;
+}
+
+.coupon-right {
+  padding: 24px 28px;
+}
+
+.coupon-name {
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.coupon-time,
+.coupon-stock {
+  color: var(--sage);
+  font-size: 11px;
+}
+
+.stock-bar,
+.sk-bar {
+  border-radius: 1px;
+}
+
+.stock-bar {
+  background: var(--porcelain-deep);
+}
+
+.stock-bar-inner {
+  border-radius: 1px;
+  background: var(--gold);
+}
+
+.coupon-action .el-button {
+  padding: 10px 25px;
+  font-size: 13px;
+}
+
+.my-coupon-item {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--paper-warm);
+}
+
+.my-coupon-value {
+  color: var(--vermilion);
+  font-family: var(--font-num);
+}
+
+.my-coupon-info p {
+  color: var(--pine-800);
+}
+
+@media (max-width: 768px) {
+  .countdown-banner {
+    padding: 22px 20px;
+  }
+
+  .coupon-left {
+    width: 100%;
+    padding: 18px;
+  }
+
+  .coupon-value .amount {
+    font-size: 36px;
+  }
+}
+</style>

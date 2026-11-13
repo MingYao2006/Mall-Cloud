@@ -26,10 +26,10 @@ const categoryName = ref('')
 let skeletonTimer = null
 
 const services = [
-  { icon: 'Goods', title: '正品保障', desc: '官方授权 假一赔十' },
-  { icon: 'RefreshLeft', title: '7天无理由', desc: '不满意随时退换' },
-  { icon: 'Van', title: '快速配送', desc: '当日下单 次日送达' },
-  { icon: 'Service', title: '贴心客服', desc: '7×24 小时在线' }
+  { icon: 'Goods', title: '正品保障', desc: '官方授权，假一赔十' },
+  { icon: 'RefreshLeft', title: '7 天无理由', desc: '不满意，随时退换' },
+  { icon: 'Van', title: '满 99 包邮', desc: '当日下单，次日发出' },
+  { icon: 'Service', title: '有人回话', desc: '7×24 小时在线客服' }
 ]
 
 const searching = computed(() => !!keyword.value.trim())
@@ -39,13 +39,13 @@ const filtering = computed(() => categoryId.value != null)
 const sectionTitle = computed(() => {
   if (searching.value) return `“${keyword.value}” 的搜索结果`
   if (filtering.value) return categoryName.value || '分类商品'
-  return '热门推荐'
+  return '今日货架'
 })
 
 const subtitle = computed(() => {
-  if (searching.value) return ''
+  if (searching.value) return '看看有没有你要找的那一件'
   if (filtering.value) return '该分类下的全部商品'
-  return '为你精心挑选的好物'
+  return '从日用百货里，挑几件顺手的'
 })
 
 const heroProduct = computed(() => goodsList.value[0] || null)
@@ -101,7 +101,7 @@ async function loadGoods() {
 async function loadCategories() {
   try {
     const data = await productApi.categoryTree()
-    // 首页只取前 7 个：Bento 布局下恰好填满 4 列 × 3 行（1 大 + 4 小 + 2 宽），其余在 /category 全部分类页展示
+    // 首页只取前 7 个：货架导视依次填满 4 列 × 3 行（1 大 + 4 小 + 2 宽），其余在 /category 展示
     categories.value = Array.isArray(data) ? data.slice(0, 7) : []
   } catch (e) {
     categories.value = []
@@ -125,6 +125,10 @@ function goCategory(category) {
   })
 }
 
+function clearFilter() {
+  router.push({ path: '/home' })
+}
+
 async function addToCart(product) {
   if (!userStore.isLogin) {
     router.push({ path: '/login', query: { redirect: route.fullPath } })
@@ -140,6 +144,11 @@ async function addToCart(product) {
 
 function scrollToRecommend() {
   const el = document.getElementById('recommend')
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function scrollToCategory() {
+  const el = document.getElementById('category')
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
@@ -175,87 +184,149 @@ onMounted(() => {
 
 <template>
   <div class="home">
+    <!-- 橱窗：首屏只做一件事，让“集物”的货架感先立住 -->
+    <section class="shopfront">
+      <div class="container shopfront-inner">
+        <div class="shopfront-copy">
+          <p v-reveal class="shopfront-kicker">
+            <span class="kicker-rule" aria-hidden="true"></span>
+            <span>集物商店 / 线上百货</span>
+          </p>
+
+          <h1 v-reveal="70" class="hero-title">
+            <span>把日常，</span>
+            <span>收进好物里。</span>
+          </h1>
+
+          <p v-reveal="140" class="hero-lede">
+            数码、家居、食品与礼物。我们只挑那些会用很久、也愿意天天看见的东西。
+          </p>
+
+          <div v-reveal="210" class="hero-actions">
+            <button class="btn-brand hero-btn" type="button" @click="scrollToRecommend">
+              逛今日货架
+              <el-icon :size="14"><ArrowRight /></el-icon>
+            </button>
+            <button
+              v-if="categories.length"
+              class="hero-link"
+              type="button"
+              @click="scrollToCategory"
+            >
+              按分类慢慢看
+              <el-icon :size="12"><ArrowRight /></el-icon>
+            </button>
+          </div>
+
+          <div v-reveal="260" class="hero-footnote">
+            <span>正品保障</span>
+            <span>满 99 元包邮</span>
+            <span>7 天无理由退换</span>
+          </div>
+        </div>
+
+        <div v-reveal="120" class="shopwindow">
+          <div class="window-topline">
+            <span>今日橱窗</span>
+            <span>从货架上取一件</span>
+          </div>
+
+          <div
+            class="window-body"
+            :class="{ 'is-empty': !heroProduct }"
+            role="link"
+            :tabindex="heroProduct ? 0 : -1"
+            @click="heroProduct && goDetail(heroProduct.id)"
+            @keydown.enter="heroProduct && goDetail(heroProduct.id)"
+          >
+            <div class="window-image">
+              <img
+                v-if="heroProduct?.mainImage"
+                :src="heroProduct.mainImage"
+                :alt="heroProduct.name"
+              />
+              <span v-else class="window-glyph" aria-hidden="true">集</span>
+            </div>
+
+            <div class="window-caption">
+              <div class="wc-copy">
+                <p class="wc-brand">{{ heroProduct?.brandName || '集物严选' }}</p>
+                <p class="wc-name">{{ heroProduct?.name || '今日好物正在上架' }}</p>
+              </div>
+              <p v-if="heroProduct" class="wc-price">{{ heroPrice }}</p>
+              <span v-else class="wc-status">待上架</span>
+            </div>
+
+            <span class="window-seal" aria-hidden="true">集</span>
+          </div>
+
+          <div class="window-shelf" aria-hidden="true"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 店铺承诺：深色营业条，给货架一点重量 -->
+    <section class="service-ribbon">
+      <div class="container service-ribbon-inner">
+        <div class="service-title">
+          <span>店铺承诺</span>
+          <small>每一单都按这个标准</small>
+        </div>
+        <div class="service-list">
+          <div v-for="s in services" :key="s.title" class="service-item">
+            <span class="service-icon">
+              <el-icon :size="17"><component :is="s.icon" /></el-icon>
+            </span>
+            <div>
+              <p class="service-name">{{ s.title }}</p>
+              <p class="service-desc">{{ s.desc }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <div class="container">
-      <!-- Hero -->
-      <section class="hero">
-        <div class="hero-text">
-          <span v-reveal class="hero-tag">Spring Cloud Alibaba 微服务商城</span>
-          <h1 v-reveal="80">遇见更好的生活</h1>
-          <p v-reveal="160">精选品质好物 · 让每一次选择都值得</p>
-          <button v-reveal="240" class="btn-brand" @click="scrollToRecommend">
-            探索新品
-            <el-icon :size="14"><ArrowRight /></el-icon>
-          </button>
-        </div>
-
-        <div v-reveal="120" class="hero-visual">
-          <span class="orb orb-1"></span>
-          <span class="orb orb-2"></span>
-          <span class="orb orb-3"></span>
-
-          <div class="hero-card">
-            <p class="hc-label">今日推荐</p>
-            <p class="hc-name">{{ heroProduct?.name || '无线降噪耳机' }}</p>
-            <p class="hc-desc">{{ heroProduct?.brandName || '沉浸音质 · 智能降噪' }}</p>
-            <p class="hc-price">{{ heroPrice }}</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- 服务保障 -->
-      <section class="service-bar">
-        <div
-          v-for="(s, i) in services"
-          :key="s.title"
-          v-reveal="i * 70"
-          class="service-item"
-        >
-          <span class="service-icon">
-            <el-icon :size="18"><component :is="s.icon" /></el-icon>
-          </span>
-          <div>
-            <p class="service-title">{{ s.title }}</p>
-            <p class="service-desc">{{ s.desc }}</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- 分类（Bento 布局：1 大 + 4 小 + 2 宽） -->
-      <section v-if="categories.length" id="category" class="block">
+      <!-- 货架导视：Bento 信息结构保留，视觉改成百货导视牌 -->
+      <section v-if="categories.length" id="category" class="block category-block">
         <SectionHeader
           v-reveal
-          title="全部分类"
-          subtitle="按品类快速找到心仪好物"
-          more-text="查看全部"
+          title="货架导视"
+          subtitle="先选一类，再慢慢看"
+          more-text="看全部分类"
           more-to="/category"
         />
+
         <div class="bento-grid">
-          <div
+          <button
             v-for="(c, i) in categories"
             :key="c.id"
-            v-reveal="i * 60"
+            type="button"
             class="bento-item"
+            :class="{ 'is-lead': i === 0 }"
             @click="goCategory(c)"
           >
-            <span class="bento-icon">{{ (c.name || '分').slice(0, 1) }}</span>
-            <div class="bento-text">
-              <p class="bento-name">{{ c.name }}</p>
-              <p v-if="i === 0" class="bento-desc">精选好物 · 一站购齐</p>
-            </div>
+            <span class="bento-ghost" aria-hidden="true">{{ (c.name || '分').slice(0, 1) }}</span>
+            <span class="bento-code">{{ i === 0 ? '主货架' : 'A' + String(i + 1).padStart(2, '0') }}</span>
+            <span class="bento-info">
+              <span class="bento-name">{{ c.name }}</span>
+              <span v-if="i === 0" class="bento-desc">本周主推，先从这一类逛起</span>
+            </span>
             <span class="bento-arrow">
               <el-icon :size="13"><ArrowRight /></el-icon>
             </span>
-          </div>
+          </button>
         </div>
       </section>
 
-      <!-- 热门推荐 -->
-      <section id="recommend" class="block">
-        <SectionHeader
-          v-reveal
-          :title="sectionTitle"
-          :subtitle="subtitle"
-        />
+      <!-- 今日货架 -->
+      <section id="recommend" class="block goods-block">
+        <SectionHeader v-reveal :title="sectionTitle" :subtitle="subtitle" />
+
+        <div v-if="searching || filtering" class="filter-note">
+          <span>正在查看{{ searching ? '搜索结果' : '分类商品' }}，共 {{ total }} 件</span>
+          <button type="button" @click="clearFilter">清除筛选</button>
+        </div>
 
         <transition name="skeleton-fade" mode="out-in">
           <div v-if="showSkeleton" key="skeleton" class="goods-grid">
@@ -275,16 +346,19 @@ onMounted(() => {
             :class="{ 'is-switching': loading }"
           >
             <ProductCard
-              v-for="(g, i) in goodsList"
+              v-for="g in goodsList"
               :key="g.id"
-              v-reveal="i * 70"
               :product="g"
               @select="goDetail(g.id)"
               @add="addToCart"
             />
           </div>
 
-          <el-empty v-else-if="!loading" key="empty" description="暂无商品" />
+          <el-empty v-else-if="!loading" key="empty" description="这一栏暂时空着，换个分类看看">
+            <el-button v-if="searching || filtering" type="primary" @click="clearFilter">
+              查看全部商品
+            </el-button>
+          </el-empty>
         </transition>
 
         <div v-if="!loading && total > pageSize" class="pagination">
@@ -304,257 +378,437 @@ onMounted(() => {
 
 <style scoped>
 .home {
-  padding-top: 24px;
+  padding-bottom: 20px;
 }
 
-/* ---------------- Hero ---------------- */
-.hero {
+/* ---------------- 首屏橱窗 ---------------- */
+.shopfront {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 32px;
-  min-height: 300px;
-  padding: 48px 56px;
-  border-radius: 28px;
   overflow: hidden;
-  background: linear-gradient(120deg, #eef3ff 0%, #e6ecfd 45%, #f3e9fa 100%);
-  box-shadow: var(--shadow-md);
+  border-bottom: 1px solid var(--line);
 }
 
-.hero::before,
-.hero::after {
+.shopfront::before {
   content: '';
   position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-}
-
-.hero::before {
-  width: 320px;
-  height: 320px;
-  background: rgba(255, 255, 255, 0.75);
-  top: -120px;
-  left: 32%;
-}
-
-.hero::after {
-  width: 260px;
-  height: 260px;
-  background: rgba(197, 178, 236, 0.45);
-  bottom: -150px;
-  right: 22%;
-}
-
-.hero-text {
-  position: relative;
-  z-index: 2;
-  flex: 1;
-}
-
-.hero-tag {
-  display: inline-block;
-  padding: 5px 14px;
-  margin-bottom: 18px;
-  border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.75);
-  font-size: 12px;
-  color: var(--brand-500);
-}
-
-.hero-text h1 {
-  font-size: 38px;
-  font-weight: 500;
-  line-height: 1.25;
-  letter-spacing: -0.5px;
-  color: var(--text-title);
-  margin-bottom: 12px;
-}
-
-.hero-text p {
-  font-size: 15px;
-  color: var(--text-muted);
-  margin-bottom: 28px;
-}
-
-.hero-visual {
-  position: relative;
-  z-index: 2;
-  width: 340px;
-  height: 210px;
-  flex-shrink: 0;
-}
-
-.orb {
-  position: absolute;
-  border-radius: 50%;
-}
-
-.orb-1 {
-  width: 140px;
-  height: 140px;
-  top: 6px;
-  left: 24px;
-  background: linear-gradient(135deg, #a9c4f0, #cbb9ee);
-  opacity: 0.85;
-  animation: float-a 9s ease-in-out infinite;
-}
-
-.orb-2 {
-  width: 92px;
-  height: 92px;
-  top: 88px;
-  left: 148px;
-  background: linear-gradient(135deg, #dcc8f0, #f0c8de);
-  opacity: 0.8;
-  animation: float-b 11s ease-in-out infinite;
-}
-
-.orb-3 {
-  width: 56px;
-  height: 56px;
-  top: 26px;
-  left: 200px;
-  background: linear-gradient(135deg, #bcd4f5, #9fc0ef);
-  opacity: 0.75;
-  animation: float-c 7.5s ease-in-out infinite;
-}
-
-@keyframes float-a {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    transform: translate3d(6px, -14px, 0);
-  }
-}
-
-@keyframes float-b {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    transform: translate3d(-8px, -10px, 0);
-  }
-}
-
-@keyframes float-c {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    transform: translate3d(4px, 10px, 0);
-  }
-}
-
-.hero-card {
-  position: absolute;
+  top: 0;
   right: 0;
-  bottom: 0;
-  width: 194px;
-  padding: 16px 18px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.62);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 10px 30px rgba(31, 42, 71, 0.08);
-  transition: transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1),
-    box-shadow 0.35s ease;
+  width: 42%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(228, 166, 47, 0.06));
+  pointer-events: none;
 }
 
-.hero-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 16px 38px rgba(31, 42, 71, 0.13);
-}
-
-.hc-label {
-  font-size: 11px;
-  color: var(--brand-500);
-  margin-bottom: 8px;
-}
-
-.hc-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-title);
-  margin-bottom: 4px;
-}
-
-.hc-desc {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 10px;
-}
-
-.hc-price {
-  font-size: 18px;
-  font-weight: 500;
-  color: var(--accent-500);
-}
-
-/* ---------------- 服务保障 ---------------- */
-.service-bar {
+.shopfront-inner {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
+  grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
+  align-items: center;
+  gap: 64px;
+  min-height: 548px;
+  padding-top: 54px;
+  padding-bottom: 54px;
+}
+
+.shopfront-copy {
+  max-width: 570px;
+}
+
+.shopfront-kicker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 23px;
+  color: var(--pine-700);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+.kicker-rule {
+  display: block;
+  width: 38px;
+  height: 2px;
+  background: var(--gold);
+}
+
+.hero-title {
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: clamp(48px, 5.4vw, 78px);
+  font-weight: 600;
+  line-height: 1.16;
+  letter-spacing: 0.015em;
+}
+
+.hero-title span {
+  display: block;
+}
+
+.hero-title span:last-child {
+  position: relative;
+  padding-left: 0.9em;
+}
+
+.hero-title span:last-child::before {
+  content: '';
+  position: absolute;
+  top: 0.28em;
+  left: 0;
+  width: 0.36em;
+  height: 0.36em;
+  background: var(--gold);
+}
+
+.hero-lede {
+  max-width: 440px;
   margin-top: 24px;
-  padding: 24px 32px;
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.72);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  box-shadow: var(--shadow-sm);
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.95;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 22px;
+  margin-top: 30px;
+}
+
+.hero-btn {
+  min-width: 154px;
+  padding-top: 13px;
+  padding-bottom: 13px;
+}
+
+.hero-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 0;
+  border: none;
+  border-bottom: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--pine-700);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+
+.hero-link:hover {
+  border-color: var(--vermilion);
+  color: var(--vermilion);
+}
+
+.hero-footnote {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: 36px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+  color: var(--sage);
+  font-size: 11px;
+}
+
+.hero-footnote span {
+  padding: 0 14px;
+  border-left: 1px solid var(--line);
+}
+
+.hero-footnote span:first-child {
+  padding-left: 0;
+  border-left: none;
+}
+
+/* 橱窗右侧 */
+.shopwindow {
+  position: relative;
+  width: 100%;
+  max-width: 432px;
+  justify-self: end;
+  animation: window-settle 0.72s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@keyframes window-settle {
+  from {
+    opacity: 0;
+    transform: translate3d(18px, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.window-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 2px 10px;
+  border-bottom: 1px solid var(--line-strong);
+  color: var(--sage);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.window-topline span:first-child {
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.window-body {
+  position: relative;
+  margin-top: 14px;
+  padding: 14px 14px 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 9px 9px 0 rgba(22, 58, 46, 0.1);
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.window-body:hover {
+  transform: translate(-3px, -3px);
+  box-shadow: 12px 12px 0 rgba(22, 58, 46, 0.13);
+}
+
+.window-body.is-empty {
+  cursor: default;
+}
+
+.window-image {
+  position: relative;
+  aspect-ratio: 1 / 1.05;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--porcelain-deep);
+  border: 1px solid var(--line);
+}
+
+.window-image::after {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border: 1px solid rgba(251, 252, 248, 0.55);
+  pointer-events: none;
+}
+
+.window-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.window-body:hover .window-image img {
+  transform: scale(1.035);
+}
+
+.window-glyph {
+  color: rgba(22, 58, 46, 0.18);
+  font-family: var(--font-display);
+  font-size: 132px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.window-caption {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 3px 17px;
+}
+
+.wc-copy {
+  min-width: 0;
+}
+
+.wc-brand {
+  overflow: hidden;
+  color: var(--sage);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-name {
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-price {
+  flex-shrink: 0;
+  color: var(--vermilion);
+  font-family: var(--font-num);
+  font-size: 25px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.wc-status {
+  flex-shrink: 0;
+  color: var(--sage);
+  font-family: var(--font-num);
+  font-size: 15px;
+  letter-spacing: 0.08em;
+}
+
+.window-seal {
+  position: absolute;
+  top: -18px;
+  right: -18px;
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border: 1px solid var(--vermilion);
+  background: var(--paper);
+  box-shadow: 4px 4px 0 rgba(200, 74, 54, 0.16);
+  color: var(--vermilion);
+  font-family: var(--font-display);
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1;
+  transform: rotate(5deg);
+  animation: seal-swing 0.8s 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes seal-swing {
+  0% {
+    opacity: 0;
+    transform: rotate(-8deg) scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(5deg) scale(1);
+  }
+}
+
+.window-shelf {
+  position: relative;
+  height: 10px;
+  margin: 18px 12px 0 0;
+  background: var(--pine-800);
+  box-shadow: 0 5px 0 rgba(22, 58, 46, 0.12);
+}
+
+.window-shelf::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--gold);
+}
+
+/* ---------------- 服务营业条 ---------------- */
+.service-ribbon {
+  border-top: 3px solid var(--gold);
+  background: var(--pine-800);
+  color: var(--paper);
+}
+
+.service-ribbon-inner {
+  display: flex;
+  align-items: stretch;
+  gap: 28px;
+  padding-top: 17px;
+  padding-bottom: 17px;
+}
+
+.service-title {
+  display: flex;
+  width: 170px;
+  flex-shrink: 0;
+  flex-direction: column;
+  justify-content: center;
+  padding-right: 26px;
+  border-right: 1px solid rgba(251, 252, 248, 0.18);
+}
+
+.service-title span {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.service-title small {
+  margin-top: 3px;
+  color: rgba(251, 252, 248, 0.52);
+  font-size: 10px;
+}
+
+.service-list {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
 }
 
 .service-item {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
+  padding: 2px 20px;
+  border-left: 1px solid rgba(251, 252, 248, 0.14);
+}
+
+.service-item:first-child {
+  border-left: none;
 }
 
 .service-icon {
-  width: 42px;
-  height: 42px;
-  flex-shrink: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 13px;
-  background: var(--brand-soft);
-  color: var(--brand-500);
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  flex-shrink: 0;
+  color: var(--gold);
 }
 
-.service-item:hover .service-icon {
-  transform: scale(1.12) rotate(-6deg);
-}
-
-.service-title {
-  font-size: 14px;
+.service-name {
+  color: var(--paper);
+  font-size: 12px;
   font-weight: 500;
-  color: var(--text-title);
-  margin-bottom: 3px;
+  line-height: 1.4;
 }
 
 .service-desc {
-  font-size: 12px;
-  color: var(--text-hint);
+  margin-top: 2px;
+  color: rgba(251, 252, 248, 0.52);
+  font-size: 10px;
+  line-height: 1.4;
 }
 
 /* ---------------- 区块 ---------------- */
 .block {
-  margin-top: 48px;
+  margin-top: 58px;
 }
 
-/* ---------------- 分类（Bento 布局） ---------------- */
+.category-block {
+  margin-top: 52px;
+}
+
+/* ---------------- 分类导视牌 ---------------- */
 .bento-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  grid-auto-rows: 128px;
-  gap: 16px;
+  grid-auto-rows: 126px;
+  gap: 13px;
 }
 
 .bento-item {
@@ -562,111 +816,154 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 22px;
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.82);
-  cursor: pointer;
   overflow: hidden;
-  transition: transform 0.3s cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 0.3s ease;
+  padding: 16px 17px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--paper);
+  color: var(--pine-800);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
 }
 
-/* 首卡放大：占 2×2 */
+.bento-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--gold);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s ease;
+}
+
+.bento-item:hover {
+  border-color: var(--line-strong);
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 rgba(22, 58, 46, 0.08);
+}
+
+.bento-item:hover::before {
+  transform: scaleX(1);
+}
+
 .bento-item:first-child {
   grid-column: span 2;
   grid-row: span 2;
-  padding: 26px;
-  background: linear-gradient(135deg, #eef1fd 0%, #f3e9fa 100%);
+  padding: 24px 25px;
+  background: var(--pine-800);
+  border-color: var(--pine-800);
+  color: var(--paper);
 }
 
-/* 第 6、7 个拉宽：各占 2 列，横向排布 */
 .bento-item:nth-child(6),
 .bento-item:nth-child(7) {
   grid-column: span 2;
   flex-direction: row;
   align-items: center;
   justify-content: flex-start;
-  gap: 14px;
+  gap: 16px;
 }
 
-.bento-item:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-md);
+.bento-code {
+  position: relative;
+  z-index: 1;
+  color: var(--sage);
+  font-family: var(--font-num);
+  font-size: 10px;
+  letter-spacing: 0.12em;
 }
 
-.bento-icon {
-  width: 46px;
-  height: 46px;
-  flex-shrink: 0;
+.bento-item:first-child .bento-code {
+  color: var(--gold);
+}
+
+.bento-info {
+  position: relative;
+  z-index: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 15px;
-  font-size: 18px;
-  font-weight: 500;
-  color: var(--brand-500);
-  background: var(--brand-soft);
-  transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.bento-item:first-child .bento-icon {
-  width: 60px;
-  height: 60px;
-  border-radius: 19px;
-  font-size: 24px;
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.bento-item:hover .bento-icon {
-  transform: scale(1.1) rotate(-6deg);
-}
-
-.bento-text {
+  flex-direction: column;
   min-width: 0;
 }
 
 .bento-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-title);
-  white-space: nowrap;
   overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bento-item:first-child .bento-name {
-  font-size: 18px;
+  font-size: 25px;
 }
 
 .bento-desc {
   margin-top: 6px;
-  font-size: 12px;
-  color: var(--text-muted);
+  color: var(--sage-light);
+  font-size: 11px;
+}
+
+.bento-ghost {
+  position: absolute;
+  right: 6px;
+  bottom: -20px;
+  color: rgba(22, 58, 46, 0.055);
+  font-family: var(--font-display);
+  font-size: 96px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.bento-item:first-child .bento-ghost {
+  right: 16px;
+  bottom: -28px;
+  color: rgba(251, 252, 248, 0.07);
+  font-size: 154px;
+}
+
+.bento-item:nth-child(6) .bento-ghost,
+.bento-item:nth-child(7) .bento-ghost {
+  right: auto;
+  left: 14px;
+  bottom: -26px;
+  font-size: 84px;
 }
 
 .bento-arrow {
   position: absolute;
-  right: 20px;
-  bottom: 20px;
+  right: 15px;
+  bottom: 15px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.85);
-  color: var(--text-hint);
+  width: 25px;
+  height: 25px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--sage);
   opacity: 0;
-  transform: translateX(-6px);
-  transition: opacity 0.28s ease, transform 0.28s ease, color 0.2s ease;
+  transform: translateX(-4px);
+  transition: opacity 0.2s ease, transform 0.2s ease, color 0.2s ease;
 }
 
 .bento-item:hover .bento-arrow {
   opacity: 1;
   transform: translateX(0);
-  color: var(--brand-500);
+  color: var(--pine-800);
 }
 
-/* 宽卡改为横向布局后，箭头贴右侧居中 */
+.bento-item:first-child .bento-arrow {
+  border-color: rgba(251, 252, 248, 0.32);
+  color: var(--gold);
+}
+
 .bento-item:nth-child(6) .bento-arrow,
 .bento-item:nth-child(7) .bento-arrow {
   position: static;
@@ -674,42 +971,76 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-/* ---------------- 商品网格 ---------------- */
+/* ---------------- 商品货架 ---------------- */
+.goods-block {
+  margin-bottom: 20px;
+}
+
+.filter-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -5px 0 18px;
+  padding: 10px 13px;
+  border: 1px solid var(--line);
+  background: var(--paper-warm);
+  color: var(--sage);
+  font-size: 12px;
+}
+
+.filter-note button {
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--pine-700);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.filter-note button:hover {
+  border-color: var(--vermilion);
+  color: var(--vermilion);
+}
+
 .goods-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
+  gap: 18px;
 }
 
-/* 筛选切换中的旧列表：轻微降透明度，给出"在加载"的反馈而不闪烁 */
 .goods-grid.is-switching {
   opacity: 0.5;
   transition: opacity 0.2s ease;
   pointer-events: none;
 }
 
-/* ---------------- 骨架屏 ---------------- */
+/* 骨架屏 */
 .skeleton-card {
   overflow: hidden;
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--paper);
 }
 
 .sk-cover {
   aspect-ratio: 1 / 1;
-  background: linear-gradient(90deg, #eef1f8 25%, #f7f9fd 37%, #eef1f8 63%);
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, #e8ece4 25%, #f4f6f0 37%, #e8ece4 63%);
   background-size: 400% 100%;
   animation: shimmer 1.4s ease infinite;
 }
 
 .sk-body {
-  padding: 14px 16px 16px;
+  padding: 15px;
 }
 
 .sk-line {
   height: 12px;
-  border-radius: 6px;
-  background: linear-gradient(90deg, #eef1f8 25%, #f7f9fd 37%, #eef1f8 63%);
+  border-radius: 1px;
+  background: linear-gradient(90deg, #e8ece4 25%, #f4f6f0 37%, #e8ece4 63%);
   background-size: 400% 100%;
   animation: shimmer 1.4s ease infinite;
 }
@@ -719,7 +1050,7 @@ onMounted(() => {
 }
 
 .sk-line-sm {
-  height: 10px;
+  height: 9px;
 }
 
 @keyframes shimmer {
@@ -731,7 +1062,6 @@ onMounted(() => {
   }
 }
 
-/* ---------------- 分页 ---------------- */
 .pagination {
   display: flex;
   justify-content: center;
@@ -739,68 +1069,214 @@ onMounted(() => {
 }
 
 /* ---------------- 响应式 ---------------- */
-@media (max-width: 1100px) {
+@media (max-width: 1120px) {
+  .shopfront-inner {
+    gap: 40px;
+    min-height: 500px;
+  }
+
   .goods-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+
   .bento-grid {
     grid-template-columns: repeat(2, 1fr);
-    grid-auto-rows: 118px;
+    grid-auto-rows: 120px;
   }
-  .bento-item:first-child,
+
+  .bento-item:first-child {
+    grid-column: span 2;
+    grid-row: span 1;
+    padding: 20px 22px;
+  }
+
   .bento-item:nth-child(6),
   .bento-item:nth-child(7) {
     grid-column: span 1;
-    grid-row: span 1;
-    padding: 20px;
-  }
-  .bento-item:nth-child(6),
-  .bento-item:nth-child(7) {
     flex-direction: column;
     align-items: flex-start;
     justify-content: space-between;
   }
-  .bento-item:first-child .bento-icon {
-    width: 46px;
-    height: 46px;
-    border-radius: 15px;
-    font-size: 18px;
+
+  .bento-item:first-child .bento-ghost,
+  .bento-item:nth-child(6) .bento-ghost,
+  .bento-item:nth-child(7) .bento-ghost {
+    right: 8px;
+    left: auto;
+    bottom: -24px;
+    font-size: 96px;
   }
+
   .bento-item:first-child .bento-name {
-    font-size: 14px;
+    font-size: 21px;
   }
-  .bento-item:first-child .bento-desc {
-    display: none;
-  }
+
   .bento-arrow,
   .bento-item:nth-child(6) .bento-arrow,
   .bento-item:nth-child(7) .bento-arrow {
     position: absolute;
-    right: 18px;
-    bottom: 18px;
+    right: 14px;
+    bottom: 14px;
     margin-left: 0;
   }
 }
 
 @media (max-width: 900px) {
-  .hero {
+  .shopfront-inner {
+    grid-template-columns: 1fr;
+    gap: 42px;
+    padding-top: 42px;
+    padding-bottom: 46px;
+  }
+
+  .shopfront-copy {
+    max-width: 640px;
+  }
+
+  .shopwindow {
+    max-width: 520px;
+    justify-self: start;
+  }
+
+  .window-image {
+    aspect-ratio: 1 / 0.82;
+  }
+
+  .service-ribbon-inner {
     flex-direction: column;
-    align-items: flex-start;
-    padding: 36px 28px;
+    gap: 14px;
   }
-  .hero-visual {
-    width: 100%;
+
+  .service-title {
+    width: auto;
+    padding-right: 0;
+    padding-bottom: 10px;
+    border-right: none;
+    border-bottom: 1px solid rgba(251, 252, 248, 0.18);
   }
-  .service-bar {
+
+  .service-list {
     grid-template-columns: repeat(2, 1fr);
+    gap: 12px 0;
   }
+
+  .service-item:nth-child(3) {
+    border-left: none;
+  }
+
   .goods-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
+@media (max-width: 560px) {
+  .hero-title {
+    font-size: 42px;
+  }
+
+  .hero-title span:last-child {
+    padding-left: 0.75em;
+  }
+
+  .hero-lede {
+    margin-top: 18px;
+    font-size: 14px;
+    line-height: 1.85;
+  }
+
+  .hero-actions {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 24px;
+  }
+
+  .hero-btn {
+    width: 100%;
+  }
+
+  .hero-footnote {
+    gap: 8px 0;
+    margin-top: 26px;
+  }
+
+  .hero-footnote span {
+    padding: 0 9px;
+    font-size: 10px;
+  }
+
+  .window-body {
+    padding: 9px 9px 0;
+    box-shadow: 6px 6px 0 rgba(22, 58, 46, 0.1);
+  }
+
+  .window-seal {
+    top: -14px;
+    right: -10px;
+    width: 46px;
+    height: 46px;
+    font-size: 21px;
+  }
+
+  .wc-name {
+    font-size: 15px;
+  }
+
+  .wc-price {
+    font-size: 21px;
+  }
+
+  .bento-grid {
+    gap: 10px;
+  }
+
+  .bento-item {
+    padding: 14px;
+  }
+
+  .bento-item:first-child {
+    padding: 17px 18px;
+  }
+
+  .bento-name {
+    font-size: 15px;
+  }
+
+  .bento-item:first-child .bento-name {
+    font-size: 19px;
+  }
+
+  .bento-desc {
+    font-size: 10px;
+  }
+
+  .goods-grid {
+    gap: 11px;
+  }
+
+  .block {
+    margin-top: 44px;
+  }
+}
+
+@media (max-width: 380px) {
+  .hero-title {
+    font-size: 38px;
+  }
+
+  .hero-title span:last-child {
+    padding-left: 0.6em;
+  }
+
+  .hero-title span:last-child::before {
+    width: 0.3em;
+    height: 0.3em;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .orb,
+  .shopwindow,
+  .window-seal,
   .sk-cover,
   .sk-line {
     animation: none;

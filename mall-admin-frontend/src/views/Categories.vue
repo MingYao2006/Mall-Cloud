@@ -1,7 +1,7 @@
 <template>
   <div class="page-card">
     <div class="toolbar">
-      <span style="font-size: 16px; font-weight: 600;">分类列表</span>
+      <span class="panel-title">分类列表</span>
       <el-button type="primary" @click="openDialog()"><el-icon><Plus /></el-icon> 添加分类</el-button>
     </div>
 

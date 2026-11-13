@@ -9,106 +9,160 @@ const columns = [
 
 <template>
   <footer class="footer">
-    <div class="container">
-      <div class="footer-top">
-        <div class="brand-col">
-          <div class="brand">
-            <span class="brand-mark"></span>
-            <span class="brand-name">Mall-Cloud</span>
-          </div>
-          <p class="brand-desc">精选品质好物，让每一次选择都值得</p>
-          <p class="brand-meta">
-            Spring Boot 3 · Spring Cloud Alibaba · Nacos · Gateway · Sentinel · LangChain4j
-          </p>
-        </div>
+    <span class="footer-goldline" aria-hidden="true"></span>
+    <span class="footer-watermark" aria-hidden="true">集</span>
 
-        <div class="link-cols">
-          <div v-for="col in columns" :key="col.title" class="link-col">
-            <h4>{{ col.title }}</h4>
-            <ul>
-              <li v-for="link in col.links" :key="link">
-                <span class="link">{{ link }}</span>
-              </li>
-            </ul>
-          </div>
+    <div class="container footer-top">
+      <div class="brand-col">
+        <div class="brand">
+          <span class="brand-seal">集</span>
+          <span class="brand-copy">
+            <span class="brand-name">集物商店</span>
+            <span class="brand-sub">JIWU GOODS</span>
+          </span>
         </div>
+        <p class="brand-desc">精选日用百货，替你把关每一件日常。慢慢挑，买得值。</p>
+        <p class="brand-meta">
+          Spring Boot 3 · Spring Cloud Alibaba · Nacos · Gateway · Sentinel · LangChain4j
+        </p>
       </div>
 
-      <div class="footer-bottom">
-        <span>© 2026 Mall-Cloud · 学习与技术演示项目，非商业用途</span>
-        <span>Powered by Vue 3 + Vite</span>
+      <div class="link-cols">
+        <div v-for="col in columns" :key="col.title" class="link-col">
+          <h4>{{ col.title }}</h4>
+          <ul>
+            <li v-for="link in col.links" :key="link">
+              <span class="link">{{ link }}</span>
+            </li>
+          </ul>
+        </div>
       </div>
+    </div>
+
+    <div class="container footer-bottom">
+      <span>© 2026 集物商店 · 学习与技术演示项目，非商业用途</span>
+      <span>Vue 3 + Vite</span>
     </div>
   </footer>
 </template>
 
 <style scoped>
 .footer {
-  margin-top: 64px;
-  padding: 48px 0 28px;
-  background: rgba(255, 255, 255, 0.66);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  border-top: 1px solid rgba(255, 255, 255, 0.7);
+  position: relative;
+  overflow: hidden;
+  margin-top: 72px;
+  padding: 52px 0 26px;
+  background: var(--pine-900);
+  color: var(--paper);
+}
+
+.footer-goldline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--gold);
+}
+
+.footer-watermark {
+  position: absolute;
+  right: 3%;
+  bottom: -48px;
+  color: rgba(251, 252, 248, 0.045);
+  font-family: var(--font-display);
+  font-size: 230px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .footer-top {
+  position: relative;
+  z-index: 1;
   display: flex;
-  gap: 64px;
-  padding-bottom: 36px;
-  border-bottom: 1px solid var(--border);
+  gap: 72px;
+  padding-bottom: 38px;
+  border-bottom: 1px solid rgba(251, 252, 248, 0.14);
 }
 
 .brand-col {
+  width: 280px;
   flex-shrink: 0;
-  width: 260px;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 11px;
+  margin-bottom: 15px;
 }
 
-.brand-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 9px;
-  background: var(--brand-gradient);
+.brand-seal {
+  display: grid;
+  width: 37px;
+  height: 37px;
+  place-items: center;
+  border: 1px solid var(--gold);
+  border-radius: 2px;
+  background: rgba(251, 252, 248, 0.06);
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
 }
 
 .brand-name {
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--text-title);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.brand-sub {
+  margin-top: 4px;
+  color: rgba(251, 252, 248, 0.42);
+  font-family: var(--font-num);
+  font-size: 9px;
+  letter-spacing: 0.18em;
 }
 
 .brand-desc {
-  font-size: 13px;
-  color: var(--text-muted);
-  line-height: 1.7;
-  margin-bottom: 10px;
+  color: rgba(251, 252, 248, 0.68);
+  font-size: 12px;
+  line-height: 1.8;
 }
 
 .brand-meta {
-  font-size: 12px;
-  color: var(--text-hint);
-  line-height: 1.7;
+  margin-top: 12px;
+  color: rgba(251, 252, 248, 0.34);
+  font-family: var(--font-num);
+  font-size: 9px;
+  line-height: 1.8;
+  letter-spacing: 0.04em;
 }
 
 .link-cols {
-  flex: 1;
   display: grid;
+  flex: 1;
   grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
+  gap: 26px;
 }
 
 .link-col h4 {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-title);
   margin-bottom: 14px;
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
 }
 
 .link-col li + li {
@@ -116,35 +170,59 @@ const columns = [
 }
 
 .link {
-  font-size: 13px;
-  color: var(--text-muted);
+  color: rgba(251, 252, 248, 0.58);
+  font-size: 12px;
   cursor: pointer;
-  transition: color 0.2s ease;
+  transition: color 0.18s ease;
 }
 
 .link:hover {
-  color: var(--brand-500);
+  color: var(--paper);
 }
 
 .footer-bottom {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 22px;
-  font-size: 12px;
-  color: var(--text-hint);
+  gap: 16px;
+  padding-top: 20px;
+  color: rgba(251, 252, 248, 0.36);
+  font-size: 10px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .footer-top {
     flex-direction: column;
-    gap: 32px;
+    gap: 34px;
   }
+
   .brand-col {
     width: 100%;
   }
+}
+
+@media (max-width: 620px) {
+  .footer {
+    margin-top: 52px;
+    padding-top: 38px;
+  }
+
   .link-cols {
     grid-template-columns: repeat(2, 1fr);
+    gap: 24px 18px;
+  }
+
+  .footer-bottom {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .footer-watermark {
+    font-size: 150px;
+    bottom: -24px;
   }
 }
 </style>

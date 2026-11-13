@@ -10,13 +10,16 @@ defineProps({
 <template>
   <div class="section-header">
     <div class="left">
-      <h2 class="title">{{ title }}</h2>
-      <span v-if="subtitle" class="subtitle">{{ subtitle }}</span>
+      <span class="title-rule" aria-hidden="true"></span>
+      <div class="title-copy">
+        <h2 class="title">{{ title }}</h2>
+        <span v-if="subtitle" class="subtitle">{{ subtitle }}</span>
+      </div>
     </div>
 
     <router-link v-if="moreTo" :to="moreTo" class="more">
       <span>{{ moreText }}</span>
-      <el-icon :size="13"><ArrowRight /></el-icon>
+      <el-icon :size="12"><ArrowRight /></el-icon>
     </router-link>
   </div>
 </template>
@@ -26,37 +29,83 @@ defineProps({
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  margin-bottom: 20px;
+  gap: 24px;
+  margin-bottom: 22px;
 }
 
 .left {
   display: flex;
+  align-items: stretch;
+  gap: 14px;
+  min-width: 0;
+}
+
+.title-rule {
+  width: 4px;
+  min-height: 40px;
+  flex-shrink: 0;
+  background: var(--gold);
+}
+
+.title-copy {
+  display: flex;
   align-items: baseline;
-  gap: 12px;
+  gap: 15px;
+  min-width: 0;
 }
 
 .title {
-  font-size: 22px;
-  font-weight: 500;
-  color: var(--text-title);
-  letter-spacing: -0.2px;
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
 }
 
 .subtitle {
-  font-size: 13px;
-  color: var(--text-muted);
+  color: var(--sage);
+  font-size: 12px;
+  letter-spacing: 0.02em;
 }
 
 .more {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--text-muted);
-  transition: color 0.2s ease;
+  gap: 5px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--line-strong);
+  color: var(--pine-700);
+  font-size: 12px;
+  transition: color 0.18s ease, border-color 0.18s ease;
 }
 
 .more:hover {
-  color: var(--brand-500);
+  border-color: var(--vermilion);
+  color: var(--vermilion);
+}
+
+@media (max-width: 680px) {
+  .section-header {
+    align-items: flex-end;
+  }
+
+  .title-copy {
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .title {
+    font-size: 23px;
+  }
+
+  .subtitle {
+    font-size: 11px;
+  }
+
+  .more {
+    font-size: 11px;
+  }
 }
 </style>

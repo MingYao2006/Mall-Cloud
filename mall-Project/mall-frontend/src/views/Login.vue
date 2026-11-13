@@ -126,17 +126,17 @@ async function doCodeLogin() {
     <div class="login-card">
       <!-- 左侧品牌展示 -->
       <aside class="brand-side">
-        <span class="orb orb-1"></span>
-        <span class="orb orb-2"></span>
-        <span class="orb orb-3"></span>
-
         <div class="brand-head">
-          <span class="brand-mark"></span>
-          <span class="brand-name">Mall-Cloud</span>
+          <span class="brand-seal">集</span>
+          <span class="brand-copy">
+            <span class="brand-name">集物商店</span>
+            <span class="brand-en">JIWU GOODS</span>
+          </span>
         </div>
 
-        <h2 class="brand-title">遇见更好的生活</h2>
-        <p class="brand-sub">精选品质好物<br/>让每一次选择都值得</p>
+        <p class="brand-kicker">线上百货 / 二十八号铺</p>
+        <h2 class="brand-title">进店坐坐，<br/>把喜欢的先收好。</h2>
+        <p class="brand-sub">登录后，购物车、订单与优惠券都会替你留着。</p>
 
         <ul class="brand-list">
           <li v-for="h in highlights" :key="h.title">
@@ -153,6 +153,7 @@ async function doCodeLogin() {
 
       <!-- 右侧表单 -->
       <section class="form-side">
+        <router-link class="back-home" to="/home">← 返回商店</router-link>
         <header class="form-head">
           <h3>{{ mode === 'login' ? '欢迎回来' : (mode === 'register' ? '创建账号' : '手机验证码登录') }}</h3>
           <p>
@@ -640,6 +641,332 @@ async function doCodeLogin() {
 @media (prefers-reduced-motion: reduce) {
   .login-card,
   .orb {
+    animation: none;
+  }
+}
+</style>
+
+<style scoped>
+/* 集物商店 · 登录登记台 */
+.login-page {
+  padding: 42px 24px;
+  background:
+    linear-gradient(90deg, rgba(22, 58, 46, 0.045) 1px, transparent 1px) 0 0 / 25% 100%,
+    transparent;
+}
+
+.login-card {
+  max-width: 980px;
+  min-height: 590px;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 10px 10px 0 rgba(22, 58, 46, 0.12);
+  animation: register-in 0.62s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@keyframes register-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.brand-side {
+  position: relative;
+  flex: 0 0 43%;
+  overflow: hidden;
+  padding: 44px 42px;
+  background: var(--pine-800);
+  color: var(--paper);
+}
+
+.brand-side::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--gold);
+}
+
+.brand-side::after {
+  content: '集';
+  position: absolute;
+  right: -22px;
+  bottom: -68px;
+  color: rgba(251, 252, 248, 0.055);
+  font-family: var(--font-display);
+  font-size: 260px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.brand-head {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 52px;
+}
+
+.brand-seal {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 1px solid var(--gold);
+  border-radius: 2px;
+  background: rgba(251, 252, 248, 0.06);
+  box-shadow: 3px 3px 0 rgba(228, 166, 47, 0.3);
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.brand-name {
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.brand-en {
+  margin-top: 4px;
+  color: rgba(251, 252, 248, 0.42);
+  font-family: var(--font-num);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+}
+
+.brand-kicker {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 14px;
+  color: var(--gold);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.brand-title {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 14px;
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+}
+
+.brand-sub {
+  position: relative;
+  z-index: 1;
+  max-width: 290px;
+  margin-bottom: 30px;
+  color: rgba(251, 252, 248, 0.6);
+  font-size: 12px;
+  line-height: 1.9;
+}
+
+.brand-list {
+  position: relative;
+  z-index: 1;
+  gap: 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(251, 252, 248, 0.16);
+}
+
+.brand-list li {
+  align-items: flex-start;
+  padding: 13px 0;
+  border-bottom: 1px solid rgba(251, 252, 248, 0.1);
+}
+
+.hl-icon {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(228, 166, 47, 0.45);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--gold);
+}
+
+.hl-title {
+  color: var(--paper);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.hl-desc {
+  color: rgba(251, 252, 248, 0.46);
+  font-size: 10px;
+}
+
+.form-side {
+  padding: 45px 52px;
+  background: var(--paper);
+}
+
+.back-home {
+  align-self: flex-start;
+  margin-bottom: 28px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--line);
+  color: var(--sage);
+  font-size: 11px;
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+
+.back-home:hover {
+  border-color: var(--vermilion);
+  color: var(--vermilion);
+}
+
+.form-head {
+  margin-bottom: 22px;
+}
+
+.form-head h3 {
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 29px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.form-head p {
+  margin-top: 5px;
+  color: var(--sage);
+  font-size: 12px;
+}
+
+.tabs {
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  padding: 0;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+
+.tab-slider {
+  display: none;
+}
+
+.tab {
+  padding: 11px 0 10px;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--sage);
+  font-size: 13px;
+  text-align: left;
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+
+.tab.active {
+  border-bottom-color: var(--gold);
+  background: transparent;
+  color: var(--pine-800);
+  font-weight: 600;
+}
+
+.form :deep(.el-input__wrapper) {
+  min-height: 44px;
+  padding: 7px 13px;
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line) inset;
+}
+
+.form :deep(.el-input__wrapper:hover) {
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line-strong) inset;
+}
+
+.form :deep(.el-input__wrapper.is-focus) {
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--pine-600) inset;
+}
+
+.submit {
+  min-height: 45px;
+  margin-top: 8px;
+  padding: 12px 26px;
+  border-radius: 2px;
+  font-size: 14px;
+}
+
+.tip {
+  margin-top: 19px;
+  color: var(--sage);
+  font-size: 12px;
+}
+
+.tip span {
+  color: var(--pine-700);
+}
+
+.tip span:hover {
+  color: var(--vermilion);
+}
+
+.demo-tip {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px dotted var(--line-strong);
+  color: var(--text-hint);
+  font-size: 10px;
+}
+
+@media (max-width: 860px) {
+  .login-card {
+    max-width: 470px;
+    min-height: auto;
+  }
+
+  .form-side {
+    padding: 34px 30px;
+  }
+
+  .back-home {
+    margin-bottom: 20px;
+  }
+}
+
+@media (max-width: 520px) {
+  .login-page {
+    padding: 22px 14px;
+  }
+
+  .form-side {
+    padding: 28px 22px;
+  }
+
+  .form-head h3 {
+    font-size: 25px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card {
     animation: none;
   }
 }

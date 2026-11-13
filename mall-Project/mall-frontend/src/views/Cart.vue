@@ -832,3 +832,129 @@ async function confirmOrder() {
   color: var(--brand-500);
 }
 </style>
+
+<style scoped>
+/* 集物商店 · 购物车账台 */
+.cart-page {
+  padding-top: 30px;
+}
+
+.page-head {
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 21px;
+}
+
+.page-head .page-title {
+  font-size: 31px;
+}
+
+.head-count {
+  color: var(--sage);
+  font-size: 12px;
+}
+
+.cart-layout {
+  gap: 24px;
+}
+
+.cart-list {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 5px 5px 0 rgba(22, 58, 46, 0.07);
+}
+
+.list-head {
+  color: var(--sage);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.cart-item:hover {
+  background: var(--paper-warm);
+}
+
+.goods-img {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--porcelain-deep);
+  color: var(--sage-light);
+}
+
+.goods-title {
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.col-price,
+.sub-total {
+  font-family: var(--font-num);
+}
+
+.sub-total {
+  color: var(--vermilion);
+}
+
+.del-btn {
+  border-radius: 2px;
+}
+
+.checkout {
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 6px 6px 0 rgba(22, 58, 46, 0.09);
+}
+
+.checkout-title {
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--line);
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.sum-total {
+  border-top: 1px dotted var(--line-strong);
+  color: var(--pine-800);
+}
+
+.total-price {
+  color: var(--vermilion);
+  font-family: var(--font-num);
+  font-size: 29px;
+  font-weight: 600;
+}
+
+.pay-btn {
+  border-radius: 2px;
+}
+
+.coupon-selector,
+.price-summary,
+.coupon-item {
+  border-radius: 2px;
+}
+
+.price-summary {
+  border: 1px solid var(--line);
+  background: var(--paper-warm);
+}
+
+.coupon-item {
+  background: var(--paper);
+}
+
+.coupon-item.selected {
+  border-color: var(--pine-700);
+  background: var(--brand-soft);
+}
+
+.check-icon {
+  color: var(--pine-700);
+}
+</style>

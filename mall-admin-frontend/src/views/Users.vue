@@ -1,7 +1,7 @@
 <template>
   <div class="page-card">
     <div class="toolbar">
-      <span style="font-size: 16px; font-weight: 600;">用户管理</span>
+      <span class="panel-title">用户管理</span>
     </div>
 
     <el-alert type="info" :closable="false" style="margin-bottom: 16px;">
@@ -13,7 +13,7 @@
       <el-descriptions-item label="用户名">{{ userInfo.username }}</el-descriptions-item>
       <el-descriptions-item label="昵称">{{ userInfo.nickname }}</el-descriptions-item>
       <el-descriptions-item label="角色">
-        <el-tag type="danger" size="small">管理员</el-tag>
+        <el-tag type="warning" effect="plain" size="small">管理员</el-tag>
       </el-descriptions-item>
       <el-descriptions-item label="手机号">{{ userInfo.phone || '-' }}</el-descriptions-item>
       <el-descriptions-item label="邮箱">{{ userInfo.email || '-' }}</el-descriptions-item>

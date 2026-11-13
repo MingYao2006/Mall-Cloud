@@ -1,8 +1,8 @@
 <template>
   <div>
     <div class="page-card">
-      <h3 style="margin-bottom: 16px;">ES 数据同步</h3>
-      <p style="color: #666; margin-bottom: 16px;">将数据库中的商品数据全量导入到 Elasticsearch，用于商品搜索功能。</p>
+      <h2 class="panel-title">ES 数据同步</h2>
+      <p class="panel-desc" style="margin: 6px 0 16px;">将数据库中的商品数据全量导入到 Elasticsearch，用于商品搜索功能。</p>
       <el-button type="primary" size="large" :loading="importing" @click="handleImport">
         <el-icon><Upload /></el-icon> 全量导入商品数据到 ES
       </el-button>
@@ -10,7 +10,7 @@
     </div>
 
     <div class="page-card">
-      <h3 style="margin-bottom: 16px;">搜索测试</h3>
+      <h2 class="panel-title">搜索测试</h2>
       <div style="display: flex; gap: 12px; margin-bottom: 16px;">
         <el-input v-model="searchKeyword" placeholder="输入关键词搜索" style="width: 300px" @keyup.enter="handleSearch" />
         <el-button type="primary" @click="handleSearch"><el-icon><Search /></el-icon> 搜索</el-button>

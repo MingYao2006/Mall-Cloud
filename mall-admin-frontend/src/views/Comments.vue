@@ -34,27 +34,27 @@
       <el-table-column prop="id" label="ID" width="70" />
       <el-table-column prop="productId" label="商品ID" width="90" />
       <el-table-column prop="userId" label="用户ID" width="90" />
-      <el-table-column prop="content" label="评论内容" min-width="240" show-overflow-tooltip />
-      <el-table-column label="图片" width="90">
+      <el-table-column prop="content" label="评论内容" min-width="220" show-overflow-tooltip />
+      <el-table-column label="图片" width="80">
         <template #default="{ row }">
           <span v-if="!row.images">-</span>
           <span v-else>{{ String(row.images).split(',').filter(Boolean).length }} 张</span>
         </template>
       </el-table-column>
-      <el-table-column label="评分" width="150">
+      <el-table-column label="评分" width="140">
         <template #default="{ row }">
           <el-rate :model-value="row.rating" disabled size="small" />
         </template>
       </el-table-column>
-      <el-table-column label="状态" width="90">
+      <el-table-column label="状态" width="80">
         <template #default="{ row }">
           <span :class="['status-tag', statusClass(row.status)]">{{ statusText(row.status) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="时间" width="170">
+      <el-table-column label="时间" width="160">
         <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="170" fixed="right">
+      <el-table-column label="操作" width="160" fixed="right">
         <template #default="{ row }">
           <el-button v-if="row.status !== 1" size="small" type="success" @click="handleAudit(row, 1)">通过</el-button>
           <el-button v-if="row.status !== 2" size="small" type="danger" @click="handleAudit(row, 2)">拒绝</el-button>
@@ -169,9 +169,5 @@ onMounted(() => {
 .toolbar { margin-bottom: 16px; }
 .toolbar-left { display: flex; gap: 10px; align-items: center; }
 .tab-badge { margin-left: 6px; }
-.pagination { margin-top: 16px; justify-content: flex-end; }
-.status-tag { padding: 2px 8px; border-radius: 10px; font-size: 12px; }
-.status-tag.success { color: #67c23a; background: rgba(103, 194, 58, 0.1); }
-.status-tag.warning { color: #e6a23c; background: rgba(230, 162, 60, 0.1); }
-.status-tag.danger { color: #f56c6c; background: rgba(245, 108, 108, 0.1); }
+.pagination { display: flex; justify-content: flex-end; margin-top: 16px; }
 </style>

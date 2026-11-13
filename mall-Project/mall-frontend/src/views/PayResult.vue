@@ -48,7 +48,7 @@ const confettiStyle = (i) => ({
   left: Math.random() * 100 + '%',
   animationDelay: Math.random() * 2 + 's',
   animationDuration: (Math.random() * 2 + 1.5) + 's',
-  background: ['#e1251b', '#ff6900', '#f6d365', '#67c23a', '#409eff', '#a29bfe'][i % 6],
+  background: ['#163a2e', '#e4a62f', '#c84a36', '#2b6150', '#61736a', '#f7f6ed'][i % 6],
   width: (Math.random() * 8 + 4) + 'px',
   height: (Math.random() * 8 + 4) + 'px'
 })
@@ -133,5 +133,61 @@ const confettiStyle = (i) => ({
 @keyframes confettiFall {
   0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
   100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+</style>
+
+<style scoped>
+/* 集物商店 · 支付回执 */
+.pay-result-page {
+  min-height: 64vh;
+  background: transparent;
+}
+
+.result-card {
+  padding: 56px 68px;
+  border: 1px solid var(--line-strong);
+  border-top: 3px solid var(--gold);
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 10px 10px 0 rgba(22, 58, 46, 0.11);
+}
+
+.result-card h2 {
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 600;
+}
+
+.result-desc {
+  color: var(--sage);
+  font-size: 13px;
+}
+
+.success .result-icon {
+  color: var(--pine-600);
+}
+
+.pending .result-icon {
+  color: var(--gold-deep);
+}
+
+.confetti-piece {
+  border-radius: 1px;
+}
+
+@media (max-width: 620px) {
+  .result-card {
+    width: calc(100% - 32px);
+    padding: 40px 24px;
+  }
+
+  .result-card h2 {
+    font-size: 25px;
+  }
+
+  .result-actions {
+    flex-direction: column;
+  }
 }
 </style>

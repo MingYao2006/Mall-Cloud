@@ -403,3 +403,109 @@ onUnmounted(() => {
   }
 }
 </style>
+
+<style scoped>
+/* 集物商店 · 会员登记册 */
+.profile-page {
+  padding: 34px 0 54px;
+}
+
+.page-title {
+  margin-bottom: 24px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 31px;
+  font-weight: 600;
+}
+
+.profile-layout {
+  gap: 24px;
+}
+
+.profile-sidebar,
+.content-panel {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 5px 5px 0 rgba(22, 58, 46, 0.07);
+}
+
+.profile-sidebar {
+  padding: 25px 22px;
+}
+
+.avatar-section {
+  border-bottom: 1px solid var(--line);
+}
+
+.avatar-wrapper {
+  border: 2px solid var(--gold);
+  border-radius: 2px;
+  background: var(--paper-warm);
+}
+
+.avatar-overlay {
+  border-radius: 0;
+  background: rgba(22, 58, 46, 0.78);
+}
+
+.user-name {
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.user-phone {
+  color: var(--sage);
+  font-family: var(--font-num);
+}
+
+.side-nav {
+  gap: 3px;
+}
+
+.side-nav a {
+  border-left: 2px solid transparent;
+  border-radius: 2px;
+  color: var(--text-body);
+  font-size: 13px;
+}
+
+.side-nav a:hover {
+  background: var(--paper-warm);
+  color: var(--pine-800);
+}
+
+.side-nav a.active {
+  border-left-color: var(--gold);
+  background: var(--brand-soft);
+  color: var(--pine-800);
+  font-weight: 600;
+}
+
+.content-panel {
+  padding: 28px 30px;
+}
+
+.panel-title {
+  margin-bottom: 22px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.profile-form :deep(.el-form-item__label) {
+  color: var(--sage);
+}
+
+.phone-bound {
+  color: var(--pine-800);
+  font-family: var(--font-num);
+}
+</style>
