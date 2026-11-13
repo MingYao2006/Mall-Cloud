@@ -1,8 +1,8 @@
-# Mall-Cloud 商城微服务系统
+# Mall-Cloud
 
-基于 Spring Cloud + Spring Cloud Alibaba 构建的微服务商城系统，涵盖商品、订单、支付、秒杀、搜索、优惠券、评论等核心业务，内置 AI 智能导购服务，并提供 Docker Compose 一键部署方案。采用 C 端 / B 端双聚合（BFF）架构，通过网关层实现流量隔离与角色鉴权。
+基于 Spring Cloud Alibaba 的分布式商城，11 个业务微服务加 1 个 AI 导购服务，覆盖商品、订单、支付、秒杀、搜索、优惠券与评论。
 
-> 本项目为学习实践项目，支付对接的是支付宝沙箱环境，不涉及真实资金。
+> 个人项目，非生产系统。支付对接支付宝沙箱，不涉及真实资金。文中所有性能数字都能在 `perf-test/` 与 `mall-ai-agent/README.md` 里找到脚本和原始输出，可自行复跑。
 
 ## 界面预览
 
@@ -29,28 +29,6 @@
 | 搜索管理与 ES 全量同步 | |
 |---|---|
 | ![搜索管理](docs/screenshots/b-search.webp) | |
-
-## 技术栈
-
-| 类别 | 技术 |
-|---|---|
-| 基础框架 | Spring Boot 3.3.6 / JDK 21+ / Maven 多模块 |
-| 微服务 | Spring Cloud 2023.0.1 + Alibaba 2023.0.1.0 |
-| 注册/配置中心 | Nacos 2.x |
-| API 网关 | Spring Cloud Gateway（C/B 端流量隔离 + JWT 鉴权） |
-| 服务调用 | OpenFeign + Spring Cloud LoadBalancer |
-| ORM | MyBatis-Plus 3.5.5 + MySQL 8 |
-| 缓存 | Redis 主从读写分离 + Redisson 分布式锁 + Caffeine 本地缓存（优惠券模块两级缓存） |
-| 消息队列 | RabbitMQ（延迟队列 + 死信队列 + 消息确认） |
-| 流控降级 | Sentinel |
-| 全文搜索 | Elasticsearch 7.17 |
-| 认证 | JWT（网关层 + 聚合层双重校验） |
-| AI 导购 | Python FastAPI + DeepSeek LLM + Milvus 向量库 |
-| 支付 | 支付宝沙箱（RSA2 密钥签名） |
-| API 文档 | Knife4j 4.4.0 |
-| 前端 | Vue 3 + Element Plus + Pinia + Vue Router + Vite |
-| 链路追踪 | SkyWalking 9.7（Java Agent 无侵入埋点） |
-| 部署 | Docker Compose + Nginx + Cloudflare Tunnel |
 
 ## 系统架构
 
@@ -79,55 +57,106 @@
   └──────┘  └───────┘  └───────┘  └────────┘
 ```
 
-### 架构说明
+- **网关（9000）**：`/api/c/**` 与 `/api/admin/**` 流量隔离；JWT 验签后下发 `X-User-Id` / `X-Username` / `X-Role`，B 端强制 `role == 1`，否则 403。
+- **BFF（9090 / 9091）**：C 端与 B 端各自聚合，通过 Feign 转发，不直接访问数据库。
+- **业务服务（11 个）**：独立部署、独立 schema，经 Nacos 注册发现。
+- **mall-common**：统一 `Result` / `PageResult` / `JwtUtil` / `RedisService` / 全局异常处理。
+- **mall-ai-agent**：独立 Python 服务，经网关接入 C 端。
 
-- **网关层（mall-gateway, 9000）**：统一入口，C 端 `/api/c/**` 与 B 端 `/api/admin/**` 流量隔离；JWT 验签后通过 `X-User-Id` / `X-Username` / `X-Role` 请求头下发用户信息；B 端强制校验 `role==1`，非管理员返回 403。
-- **C 端聚合（mall-Project, 9090）**：面向消费者的 BFF 层，通过 Feign 转发到各微服务，不直接访问数据库。
-- **B 端聚合（mall-project-admin, 9091）**：面向管理员的 BFF 层，JWT 拦截器二次校验 `role==1`，提供商品/分类/订单/评论/搜索等管理接口。
-- **业务微服务（11 个）**：各自独立部署、独立访问数据库，通过 Nacos 注册发现。
-- **mall-common**：统一封装 `Result` / `PageResult` / `JwtUtil` / `RedisService` / `GlobalExceptionHandler`，消除服务间重复代码。
-- **mall-ai-agent**：独立 Python 服务，基于 LLM + 向量检索实现智能导购问答，经网关接入 C 端。
+## 技术栈
 
-## 核心设计亮点
+| 类别 | 技术 |
+|---|---|
+| 基础 | Spring Boot 3.3.6 / JDK 21 / Maven 多模块 |
+| 微服务 | Spring Cloud 2023.0.1 + Alibaba 2023.0.1.0 / Nacos 2.x / OpenFeign |
+| 网关 | Spring Cloud Gateway（C/B 流量隔离 + JWT 验签） |
+| 数据 | MySQL 8 / MyBatis-Plus 3.5.5 |
+| 缓存 | Redis 主从读写分离 / Redisson / Caffeine + Redis 两级缓存（优惠券） |
+| 消息 | RabbitMQ（TTL + 死信队列 + 手动 ACK） |
+| 搜索 | Elasticsearch 7.17 |
+| AI | FastAPI / DeepSeek / Milvus |
+| 前端 | Vue 3 / Element Plus / Pinia / Vite |
+| 可观测 | SkyWalking 9.7（Java Agent 无侵入埋点） |
+| 部署 | Docker Compose / Nginx / Cloudflare Tunnel |
 
-### 1. 秒杀系统 — 三层防超卖
+## 核心问题与做法
 
-```
-请求 → 用户级 Redis 计数器限流 → Redisson 分布式锁 → Lua 预减库存 → DB 乐观锁扣减 → MQ 异步落单
-```
+### 1. 秒杀超卖
 
-- **限流**：用户级 Redis 计数器（INCR + EXPIRE）拦截恶意刷接口
-- **防超卖**：Lua 脚本原子预减库存 + DB 乐观锁 `WHERE stock > 0` 两级扣减兜底
-- **削峰**：MQ 异步处理秒杀订单，保护数据库
-- **幂等**：基于 messageId 的 Redis 幂等控制，防止重复下单与重复补偿
+`用户限流 -> Redisson 锁 -> Lua 预减库存 -> DB 乐观锁 -> MQ 异步落单`
 
-### 2. 缓存三剑客
+- **限流**：用户维度 Redis 计数，60 秒内最多 10 次。
+- **预减**：Lua 脚本在 Redis 内原子完成"判库存 + 扣减 + 写购买标记"，超卖与重复提交在入口被挡住。
+- **兜底**：DB 侧 `UPDATE ... WHERE stock >= n` 乐观锁写库存，防 Redis 与 DB 不一致时写出负数。
+- **幂等**：messageId 在 Redis 去重；一人多单另由 `uk_user_coupon` 唯一索引保证。
 
-| 问题 | 方案 | 实现 |
+> 这条链路只做过功能验证，没有并发压测，所以这里不给超卖数和 QPS。
+
+### 2. 缓存穿透与热 Key
+
+`ProductService.findById` 六层：参数校验 -> 空值缓存（5 分钟）-> 命中缓存 -> Redisson 互斥锁 + 双重检查 -> 查库 -> 随机 TTL（10–40 分钟）回填。
+
+`perf-test/` 三组对照，每组 1 万请求（100 线程 × 100 循环），DB 查询取 `Com_select` 前后差值，单机单实例：
+
+| 场景 | QPS | Avg | P99 | DB 查询次数 |
+|---|---|---|---|---|
+| A 缓存穿透（每次全新不存在 ID） | 457.9 | 175.9 ms | 315 ms | 9997 |
+| B 空值缓存（30 个固定不存在 ID） | 711.0 | 99.1 ms | 254 ms | 37 |
+| C 热缓存（存在商品，已预热） | 904.7 | 61.7 ms | 222 ms | 1 |
+
+A → B 只改了入参与空值缓存，QPS 提升 55%，DB 查询从 9997 降到 37。C 组是同一条读路径的上限参考，不是同口径对比。
+
+### 3. 订单超时关闭
+
+`下单 -> TTL 交换机（x-message-ttl）-> 死信队列 -> 消费者关单`
+
+- 生产端开启 confirm，消费端手动 ACK。
+- 消费者先回查订单状态，仍是待支付才关单，避免误关已支付订单。
+- 关单后异步回补库存与优惠券。
+
+> 手动取消与延迟消息取消都会回补，存在双重回补；消费者也未按 messageId 幂等。两点均未修复。
+
+### 4. 商品语义检索
+
+`LLM 离线打标 -> Milvus 建索引 -> ES 关键词召回 + 向量召回 -> RRF（k=60）融合`
+
+只靠标题匹配时，"聚会用的杯子"这类无字面重叠的查询召不回来。离线用 LLM 为 SPU 生成类目、属性、使用场景标签，查询时关键词与向量两路并行召回，再用 RRF 融合排名。
+
+| 指标 | 朴素关键词基线 | 混合检索 |
 |---|---|---|
-| 缓存穿透 | 参数校验 + 空值缓存 | 查不到的数据缓存 null，TTL=5min |
-| 缓存击穿 | Redisson 分布式锁重建 | 热点 Key 过期时加锁重建，其他线程等待 |
-| 缓存雪崩 | 随机过期 + 预热 | 商品缓存 10-40min 随机 TTL + 启动预热（mall-Project 的 CacheWarmupService）；优惠券模块另用 Caffeine + Redis 两级缓存 |
+| Top-3 召回 | 6/26 = 23.1% | 13/26 = 50.0% |
 
-### 3. 订单超时自动取消 — RabbitMQ 死信队列
+口径：33 条测试问题，其中 26 条计入 Top-3 字面命中；另有 9 条问的品类站内不存在，基线与混合检索都必然判负，上限为 17/26。详见 `mall-ai-agent/README.md`。
 
-```
-下单 → 延迟交换机（x-message-ttl）→ 到期进入死信队列 → 消费者取消订单 + 回补库存 + 退回优惠券
-```
+### 5. 商品列表页索引
 
-- 生产者确认 + 消费者手动 ACK，消息不丢失
-- 消费端二次校验订单状态，保证状态机一致性
+`perf-test/index-bench/` 在 20 万行基准表上用 `EXPLAIN ANALYZE` 逐条对比：
 
-### 4. Redis 主从 + 读写分离
+| 查询 | 优化前 | 优化后 |
+|---|---|---|
+| 分类 + 上架，按价格倒序取 20 | 113 ms，index merge intersect 扫 18.8 万条索引项 + filesort 1 万行 | 0.088 ms，复合索引只读 20 行 |
+| 深翻页 `OFFSET 100000` | 657 ms | 1.39 ms（游标分页）/ 43 ms（延迟关联） |
 
-- 一主两从架构（6379 / 6380 / 6381），另有哨兵与 Cluster 配置可选
-- Redisson 读请求走从节点，写走主节点
-- Redis 不可用时自动降级到数据库查询
+优化前的坏计划来自两条单列索引 `idx_category_id` 与 `idx_status` 求交集：为过滤 93% 上架商品，反而扫了 18.8 万条索引项。改成 `(is_deleted, status, category_id, price)` 才稳定走覆盖查询。
 
-### 5. AI 智能导购（mall-ai-agent）
+## 实测数据索引
 
-- FastAPI + DeepSeek 对话，工具调用（Function Calling）查询商品/订单数据
-- Milvus 向量检索 + 全文搜索的混合召回
+| 内容 | 位置 |
+|---|---|
+| 缓存三组对照原始结果 | `perf-test/results.json` |
+| 压测脚本 | `perf-test/product-detail.jmx`、`perf-test/bench.py` |
+| 索引实验全过程与 EXPLAIN 原文 | `perf-test/index-bench/` |
+| AI 评测脚本与样本 | `mall-ai-agent/eval/run_eval.py` |
+
+## 已知问题
+
+- 秒杀没有并发压测，超卖与重复单均无量化结论。
+- `uk_user_coupon` 唯一索引在 `coupon_tables.sql` 里被注释掉，一人多单目前只靠 Redis key 拦。
+- 手动取消与延迟消息取消都会回补库存，存在双重回补；延迟消费者未按 messageId 幂等。
+- 延迟消息在本地事务提交前发出，事务回滚会留下孤儿消息。
+- `idx_status` / `idx_category_id` 已被复合索引最左前缀覆盖，应在生产表删除，目前只在基准表验证过。
+- 20 万行是造的基准数据，真实 `product` 表只有 146 行，该规模下索引收益无法在真实数据上观测。
+- AI 评测集 26 条有效样本偏小，Top-3 衡量的是字面命中，不等于语义质量。
 
 ## 快速启动
 
@@ -136,12 +165,12 @@
 - JDK 21+，Maven 3.8+
 - MySQL 8.0+、Redis 6.0+、RabbitMQ 3.x、Nacos 2.x
 - Node.js 18+（前端）
-- Elasticsearch 7.17（搜索服务，可选）
-- Python 3.11+（AI 导购服务，可选）
+- Elasticsearch 7.17（可选）
+- Python 3.11+（AI 导购，可选）
 
 ### 环境变量
 
-所有密钥均通过环境变量注入，仓库内不含任何明文密钥。本地开发可复制 `deploy/.env.example` 按需填写：
+所有密钥通过环境变量注入，仓库内不含明文密钥。本地开发复制 `deploy/.env.example` 后按需填写：
 
 | 变量 | 用途 |
 |---|---|
@@ -150,59 +179,57 @@
 | `NACOS_PASSWORD` | Nacos 鉴权密码 |
 | `RABBITMQ_USER` / `RABBITMQ_PASSWORD` | RabbitMQ 账号 |
 | `ALIPAY_PRIVATE_KEY` | 支付宝应用私钥（沙箱控制台获取） |
-| `ALIPAY_PUBLIC_KEY` | 支付宝应用公钥（上传到控制台的那串） |
-| `ALIPAY_ALIPAY_PUBLIC_KEY` | 支付宝公钥（控制台展示，用于回调验签） |
+| `ALIPAY_PUBLIC_KEY` | 支付宝应用公钥 |
+| `ALIPAY_ALIPAY_PUBLIC_KEY` | 支付宝公钥（回调验签） |
 
 ### 初始化数据库
 
 依次执行 `mall-Project/sql/` 下的脚本：
 
 ```
-mall_database.sql → coupon_tables.sql → add_wx_login.sql → fix_seckill_log_table.sql
+mall_database.sql -> coupon_tables.sql -> add_wx_login.sql -> fix_seckill_log_table.sql
 ```
 
 ### 启动顺序
 
-> ⚠️ 严格按顺序启动，后置服务依赖前置服务的注册信息。
+> 后置服务依赖前置服务的注册信息，不要并行拉起。
 
-1. **基础设施**：Nacos（8848）→ Redis 主从（6379/6380/6381）→ RabbitMQ（5672）→ MySQL（3306）
-2. **业务微服务**：user(8081) / category(8082) / product(8083) / cart(8084) / order(8085) / search(8087) / seckill(8088) / payment(8089) / comment(8090) / cache(8091) / coupon(8092)
-3. **网关**：mall-gateway（9000），等待微服务全部注册后启动
+1. **基础设施**：Nacos（8848）-> Redis 主从（6379/6380/6381）-> RabbitMQ（5672）-> MySQL（3306）
+2. **业务微服务**：user 8081 / category 8082 / product 8083 / cart 8084 / order 8085 / search 8087 / seckill 8088 / payment 8089 / comment 8090 / cache 8091 / coupon 8092
+3. **网关**：mall-gateway（9000），等微服务全部注册后再启动
 4. **聚合服务**：mall-Project（9090）、mall-project-admin（9091）
 5. **AI 导购（可选）**：`cd mall-ai-agent && python -m uvicorn app.main:app --port 8095`
 6. **前端**：
 
 ```bash
-# C 端
 cd mall-Project/mall-frontend && npm install && npm run dev   # http://localhost:3000
-# B 端
-cd mall-admin-frontend && npm install && npm run dev         # http://localhost:3001
+cd mall-admin-frontend && npm install && npm run dev          # http://localhost:3001
 ```
 
 ### 访问入口
 
-| 入口 | 地址 | 说明 |
-|---|---|---|
-| C 端前台 | http://localhost:3000 | 消费者商城 |
-| B 端后台 | http://localhost:3001 | 管理员后台 |
-| C 端 API 文档 | http://localhost:9090/doc.html | Knife4j |
-| B 端 API 文档 | http://localhost:9091/doc.html | Knife4j |
-| Nacos 控制台 | http://localhost:8848/nacos | 服务注册发现 |
-| RabbitMQ 管理 | http://localhost:15672 | 队列监控 |
+| 入口 | 地址 |
+|---|---|
+| C 端前台 | http://localhost:3000 |
+| B 端后台 | http://localhost:3001 |
+| C 端 API 文档 | http://localhost:9090/doc.html |
+| B 端 API 文档 | http://localhost:9091/doc.html |
+| Nacos 控制台 | http://localhost:8848/nacos |
+| RabbitMQ 管理 | http://localhost:15672 |
 
 ### 服务器部署（可选）
 
-`deploy/` 目录提供完整的 Docker Compose 生产部署方案：MySQL / Redis / RabbitMQ / Nacos / Elasticsearch / SkyWalking 全容器化，Nginx 托管前端，Cloudflare Tunnel 免公网 IP 暴露：
+`deploy/` 提供完整 Docker Compose 方案：MySQL / Redis / RabbitMQ / Nacos / Elasticsearch / SkyWalking 全容器化，Nginx 托管前端，Cloudflare Tunnel 免公网 IP：
 
 ```bash
 cd deploy
-cp .env.example .env    # 填写密钥
-bash install.sh         # 一键构建并启动
+cp .env.example .env
+bash install.sh
 ```
 
 ### 管理员账号
 
-在 MySQL `mall` 库的 `user` 表中，将目标用户的 `role` 设为 `1`：
+在 `mall` 库的 `user` 表中把目标用户 `role` 置为 1：
 
 ```sql
 UPDATE user SET role = 1 WHERE username = '你的管理员用户名';
@@ -212,26 +239,26 @@ UPDATE user SET role = 1 WHERE username = '你的管理员用户名';
 
 | 服务 | 端口 | 说明 |
 |---|---|---|
-| mall-gateway | 9000 | API 网关，统一入口 |
-| mall-Project | 9090 | C 端聚合服务（BFF） |
-| mall-project-admin | 9091 | B 端聚合服务（BFF） |
-| mall-user-service | 8081 | 用户服务 |
-| mall-category-service | 8082 | 分类服务 |
-| mall-product-service | 8083 | 商品服务 |
-| mall-cart-service | 8084 | 购物车服务 |
-| mall-order-service | 8085 | 订单服务 |
-| mall-search-service | 8087 | 搜索服务（Elasticsearch） |
-| mall-seckill-service | 8088 | 秒杀服务 |
-| mall-payment-service | 8089 | 支付服务（支付宝沙箱） |
-| mall-comment-service | 8090 | 评论服务 |
-| mall-cache-service | 8091 | 缓存预热服务 |
-| mall-coupon-service | 8092 | 优惠券服务 |
-| mall-ai-agent | 8095 | AI 导购服务（FastAPI） |
-| mall-frontend | 3000 | C 端前端（Vite） |
-| mall-admin-frontend | 3001 | B 端前端（Vite） |
-| Nacos | 8848 | 注册/配置中心 |
+| mall-gateway | 9000 | API 网关 |
+| mall-Project | 9090 | C 端聚合（BFF） |
+| mall-project-admin | 9091 | B 端聚合（BFF） |
+| mall-user-service | 8081 | 用户 |
+| mall-category-service | 8082 | 分类 |
+| mall-product-service | 8083 | 商品 |
+| mall-cart-service | 8084 | 购物车 |
+| mall-order-service | 8085 | 订单 |
+| mall-search-service | 8087 | 搜索（Elasticsearch） |
+| mall-seckill-service | 8088 | 秒杀 |
+| mall-payment-service | 8089 | 支付（支付宝沙箱） |
+| mall-comment-service | 8090 | 评论 |
+| mall-cache-service | 8091 | 缓存预热 |
+| mall-coupon-service | 8092 | 优惠券 |
+| mall-ai-agent | 8095 | AI 导购（FastAPI） |
+| mall-frontend | 3000 | C 端前端 |
+| mall-admin-frontend | 3001 | B 端前端 |
+| Nacos | 8848 | 注册 / 配置中心 |
 | MySQL | 3306 | 数据库 |
-| Redis | 6379/6380/6381 | Redis 主从 |
-| RabbitMQ | 5672 / 15672 | 消息队列 / 管理界面 |
+| Redis | 6379 / 6380 / 6381 | 主从 |
+| RabbitMQ | 5672 / 15672 | 消息队列 / 管理台 |
 | Sentinel Dashboard | 8080 | 流控控制台（可选） |
-| SkyWalking UI / OAP | 8080 / 11800 / 12800 | 链路追踪（可选，compose profile: skywalking） |
+| SkyWalking | 8080 / 11800 / 12800 | 链路追踪（compose profile: skywalking） |
