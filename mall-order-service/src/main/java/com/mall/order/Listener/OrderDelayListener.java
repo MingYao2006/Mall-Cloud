@@ -33,6 +33,9 @@ public class OrderDelayListener {
     /** 资源恢复（还库存）幂等键前缀 */
     private static final String ORDER_CANCEL_RESOURCE_IDEMPOTENT_PREFIX = "order:cancel:resource:";
 
+    /** 支付成功加销量的幂等键前缀（订单级，非逐商品） */
+    private static final String ORDER_PAYMENT_SALES_IDEMPOTENT_PREFIX = "order:payment:sales:";
+
     // 原 handleOrderDelay() 已移除：超时关单不再由 MQ 延迟消息驱动，
     // 改由 OrderTimeoutTask 定时扫表 + OrderCancelService.cancelPendingOrder 条件更新完成。
     // 移走的收益：少一条 exchange/queue/binding、少一个"发消息前宕机即永久卡单"的窗口、
@@ -40,26 +43,59 @@ public class OrderDelayListener {
     // （条件更新的影响行数本身就是幂等凭证，且没有"抢到 key 后崩溃导致订单永远不取消"的失败模式）。
 
     /**
-     * 支付成功监听器
+     * 支付成功监听器：增加商品销量。
+     * <p>
+     * 为什么必须做幂等：{@code increaseSales} 在 product 服务里是
+     * {@code UPDATE product SET sales = sales + #{quantity}}——纯累加、没有 WHERE 守卫，
+     * 天生不幂等，消息投几次就加几次。而这条消息走 outbox 投递，是<b>至少一次</b>语义：
+     * ① 投递后等 confirm 超时、消息其实已进 Broker，重试会再发一次；
+     * ② 消费端本地重试 3 次，中途某项成功、后项失败时整条重放；
+     * ③ 消费完未 ACK 就崩溃，RabbitMQ 会重新投递。
+     * <p>
+     * 幂等键粒度选<b>订单级</b>而不是逐商品：销量不是资损字段，重复加只影响排行榜排序，
+     * 不值得为它引入 {@code sales_log} 唯一索引表。失败就整单重来，最坏某个商品多加一次。
+     * 这是"幂等强度与字段资损等级匹配"的取舍——库存回补那边必须逐商品幂等，
+     * 因为重复会导致库存错，性质完全不同。
      */
     @Transactional
     @RabbitListener(queues = "payment.success.queue")
     public void handlePaymentSuccess(Map<String, Object> message){
+        // 先占位，解析失败时 key 还是 null，catch 里据此判断要不要释放
+        String salesKey = null;
+        Long orderId = null;
         try{
 //            提取消息内容
-            Long orderId = Long.valueOf(message.get("orderId").toString());
+            orderId = Long.valueOf(message.get("orderId").toString());
             Long userId = Long.valueOf(message.get("userId").toString());
             String orderNo = message.get("orderNo").toString();
+            salesKey = ORDER_PAYMENT_SALES_IDEMPOTENT_PREFIX + orderId;
 //            打印日志
             log.info("收到支付成功消息，订单ID: {}, 用户ID: {}", orderId, userId);
-            
+
 //            查询订单
             Order order = orderMapper.selectById(orderId);
             if (order == null) {
                 log.warn("订单不存在，订单ID: {}", orderId);
                 return;
             }
-            
+
+//            状态守卫：只有确实处于「已支付」才增加销量。
+//            挡掉"订单已取消/已退款却收到支付消息"这类非法消息，
+//            但它挡不住"状态一直是 1 的两条重复消息"——那是下面 SETNX 的职责。
+            if (order.getStatus() == null || order.getStatus() != 1) {
+                log.warn("订单非已支付状态，跳过销量增加，订单ID: {}, 状态: {}",
+                        orderId, order.getStatus());
+                return;
+            }
+
+//            订单级幂等：抢不到键说明这条消息已处理过，直接 ack 不再重复加
+            Boolean firstConsume = redisTemplate.opsForValue()
+                    .setIfAbsent(salesKey, "1", 24, TimeUnit.HOURS);
+            if (Boolean.FALSE.equals(firstConsume)) {
+                log.info("销量已增加过，跳过重复消费，订单ID: {}", orderId);
+                return;
+            }
+
 //            查询订单项
             List<OrderItem> orderItems = orderItemMapper.selectByOrderId(orderId);
 //            遍历并增加销量
@@ -75,8 +111,13 @@ public class OrderDelayListener {
 //            打印完成日志
             log.info("支付成功后续处理完成，订单ID: {}", orderId);
         } catch (Exception e) {
-            log.error("支付成功后续处理失败,错误信息：{}", e.getMessage());
-            e.printStackTrace();
+            // 失败必须释放幂等键，否则重投时会被自己刚占的键挡在门外，销量永远补不回来。
+            // 原则与回补侧一致：幂等键只能挡住"该跳过的重复"，不能挡死"该重试的失败"。
+            // salesKey 为 null 说明连消息体都没解析出来，此时没有键需要释放。
+            if (salesKey != null) {
+                redisTemplate.delete(salesKey);
+            }
+            log.error("支付成功后续处理失败,订单ID: {}, 错误信息：{}", orderId, e.getMessage());
             throw new RuntimeException("支付成功后续处理失败", e);
         }
     }

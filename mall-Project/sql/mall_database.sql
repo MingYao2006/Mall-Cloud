@@ -157,6 +157,31 @@ CREATE TABLE `order_item` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='订单详情表';
 
 -- =============================================
+-- 6.1 本地消息表 (mq_outbox)
+-- =============================================
+-- 解决"订单落库成功、发送 MQ 前服务宕机导致消息永久丢失"：
+-- 把发消息降级成同事务内插一行记录，提交后由 OutboxSendTask 轮询投递并等 publisher confirm。
+DROP TABLE IF EXISTS `mq_outbox`;
+CREATE TABLE `mq_outbox` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `biz_key` VARCHAR(128) NOT NULL COMMENT '业务幂等键，如 order:12345:payment-success',
+    `exchange_name` VARCHAR(128) NOT NULL COMMENT '目标交换机',
+    `routing_key` VARCHAR(128) NOT NULL COMMENT '路由键',
+    `payload` TEXT NOT NULL COMMENT '消息体（JSON）',
+    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '0-待投递 1-已投递 2-已失败（超重试上限，需人工介入）',
+    `retry_count` INT NOT NULL DEFAULT 0 COMMENT '已重试次数',
+    `next_retry_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '下次可投递时间（指数退避）',
+    `last_error` VARCHAR(500) DEFAULT NULL COMMENT '最近一次失败原因',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    -- 同一业务事件只允许一条待投递记录，业务代码被重复触发也不会重复发消息
+    UNIQUE KEY `uk_biz_key_exchange` (`biz_key`, `exchange_name`),
+    -- 投递任务的扫描索引：status 等值 + next_retry_time 范围
+    KEY `idx_status_retry` (`status`, `next_retry_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='本地消息表（Outbox），保证业务落库与消息投递的最终一致';
+
+-- =============================================
 -- 初始化测试数据
 -- =============================================
 
@@ -404,6 +429,7 @@ INSERT INTO `product_comment` (`product_id`, `user_id`, `order_id`, `content`, `
 -- 4. 购物车表：记录用户购物车商品，同一用户同一商品只能有一条记录
 -- 5. 订单表：记录订单基本信息，包含订单状态流转、收货信息等
 -- 6. 订单详情表：记录订单中的商品明细，冗余商品信息防止商品修改影响历史订单
+-- 6.1 本地消息表：与业务写操作同事务落库，由后台任务投递并等 confirm，保证消息不因宕机丢失
 -- 7. 品牌表：存储品牌基本信息，包含品牌名称、Logo、描述等
 -- 8. 商品图片表：存储商品多张图片，区分主图、详情图、规格图
 -- 9. 商品SKU规格表：存储商品不同规格的库存、价格信息

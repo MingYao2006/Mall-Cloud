@@ -23,13 +23,10 @@ import com.mall.order.mapper.ProductMapper;
 import jakarta.annotation.Resource;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import com.mall.common.RedisService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -68,7 +65,7 @@ public class OrderService {
     private ProductServiceFeignClient productServiceFeignClient;
 
     @Autowired
-    private RabbitTemplate rabbitTemplate;
+    private OutboxService outboxService;
 
 
     private static final String ORDER_CACHE_KEY = "order:";
@@ -720,51 +717,12 @@ public class OrderService {
                     + getStatusText(latest == null ? null : latest.getStatus()));
         }
         // 6. 库存恢复统一交由资源队列消费者处理，避免与异步链路重复归还
-        // 7. 事务提交后再发送资源消息，避免"订单已取消但消息丢失"
-        sendOrderCancelledMessageAfterCommit(orderId, orderItems);
-    }
-
-    /**
-     * 在事务提交成功后再发送订单取消消息；若无事务则直接发送。
-     * afterCommit 阶段事务已提交，发送失败只能记日志，需要补偿机制（如本地消息表）兜底。
-     */
-    private void sendOrderCancelledMessageAfterCommit(Long orderId, List<OrderItem> orderItems) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            sendOrderCancelledMessage(orderId, orderItems);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                sendOrderCancelledMessage(orderId, orderItems);
-            }
-        });
-    }
-
-    /**
-     * 发送订单取消消息，异步恢复资源
-     */
-    private void sendOrderCancelledMessage(Long orderId, List<OrderItem> orderItems) {
-        try {
-            Map<String,Object> message=new HashMap<>();
-            message.put("orderId", orderId);
-            List<Map<String, Object>> orderItemList = new ArrayList<>();
-            for (OrderItem item : orderItems) {
-                Map<String, Object> itemMap = new HashMap<>();
-                itemMap.put("productId", item.getProductId());
-                itemMap.put("quantity", item.getQuantity());
-                orderItemList.add(itemMap);
-            }
-            message.put("orderitem", orderItemList);
-            rabbitTemplate.convertAndSend(
-                    "order.cancel.resource.exchange",  // 交换器名称
-                    "order.cancel.resource.key",       // 路由键
-                    message                             // 消息内容
-            );
-            System.out.println("订单取消消息已发送，订单ID: " + orderId);
-        } catch (Exception e) {
-            System.err.println("发送订单取消消息失败: " + e.getMessage());
-        }
+        // 7. 回补消息与状态更新在同一个本地事务里入 outbox，宕机也不会丢
+        outboxService.enqueue(
+                "order:" + orderId + ":cancel-resource",
+                "order.cancel.resource.exchange",
+                "order.cancel.resource.key",
+                OrderCancelService.buildRestoreMessage(orderId, orderItems));
     }
 
     /**
@@ -825,55 +783,32 @@ public class OrderService {
         if (orderMapper.payIfPending(orderId) != 1) {
             throw new BusinessException(400, "订单未处于待支付状态");
         }
-        // 5. 支付成功消息在事务提交后发送，避免本地回滚却已通知下游增加销量
-        sendPaymentMessageAfterCommit(orderId, order.getUserId(), order.getOrderNo(), order.getPayAmount());
+        // 5. 支付成功消息与状态更新在同一个本地事务内入 outbox：
+        //    业务回滚则消息记录一起回滚，业务提交则消息一定待发，不会"回滚了但已通知下游"
+        enqueuePaymentMessage(orderId, order.getUserId(), order.getOrderNo(), order.getPayAmount());
     }
 
 
     /**
-     * 支付成功消息发送器：在事务提交后发送，且发送失败只记日志。
+     * 支付成功消息：与支付状态更新在同一事务内入 outbox。
      * <p>
-     * 为什么必须挪到 afterCommit：原先在事务内发送，若本地事务随后回滚，
-     * 下游已经收到"支付成功"并增加了销量，造成销量虚增（不可逆）。
-     * 提交后发送的代价是发送失败时消息丢失——销量不是资损字段，
-     * 由后续对账任务兜底，优先级低于一致性正确性。
+     * 之前是注册 afterCommit 回调直接发，commit 成功后发送异常会被 catch 吞掉，
+     * 进程崩溃则消息丢失、销量永不增加。现在改成写库，由 OutboxSendTask 负责投递，
+     * "消息一定会发"由数据库记录保证。
      */
-    private void sendPaymentMessageAfterCommit(Long orderId, Long userId, String orderNo, BigDecimal payAmount) {
-        Runnable task = () -> sendPaymentMessage(orderId, userId, orderNo, payAmount);
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            task.run();
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                task.run();
-            }
-        });
-    }
+    private void enqueuePaymentMessage(Long orderId, Long userId, String orderNo, BigDecimal payAmount) {
+        Map<String, Object> message = new HashMap<>();
+        message.put("orderId", orderId);
+        message.put("userId", userId);
+        message.put("orderNo", orderNo);
+        message.put("payAmount", payAmount);
+        message.put("paymentTime", LocalDateTime.now());
 
-    /**
-     * 支付成功消息发送器
-     */
-    private void sendPaymentMessage(Long orderId, Long userId, String orderNo, BigDecimal payAmount) {
-        try {
-            Map<String, Object> message = new HashMap<>();
-            message.put("orderId", orderId);
-            message.put("userId", userId);
-            message.put("orderNo", orderNo);
-            message.put("payAmount", payAmount);
-            message.put("paymentTime", LocalDateTime.now());
-
-            rabbitTemplate.convertAndSend(
-                    "payment.success.exchange",
-                    "payment.success.key",
-                    message
-            );
-
-            System.out.println("支付成功消息已发送，订单ID: " + orderId);
-        } catch (Exception e) {
-            System.err.println("发送支付成功消息失败: " + e.getMessage());
-        }
+        outboxService.enqueue(
+                "order:" + orderId + ":payment-success",
+                "payment.success.exchange",
+                "payment.success.key",
+                message);
     }
 
     /**
@@ -906,7 +841,7 @@ public class OrderService {
         if (orderMapper.payIfPending(order.getId()) != 1) {
             return; // 已支付 / 已取消，幂等处理
         }
-        sendPaymentMessageAfterCommit(order.getId(), order.getUserId(), order.getOrderNo(), order.getPayAmount());
+        enqueuePaymentMessage(order.getId(), order.getUserId(), order.getOrderNo(), order.getPayAmount());
     }
 
 

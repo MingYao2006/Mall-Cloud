@@ -1,6 +1,7 @@
 package com.mall.order.config;
 
 import lombok.extern.slf4j.Slf4j;
+import com.mall.order.mapper.MqOutboxMapper;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -9,6 +10,7 @@ import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -64,21 +66,57 @@ public class RabbitMqConfig {
 
 
     @Bean
-    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory, MessageConverter messageConverter) {
+    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory,
+                                         MessageConverter messageConverter,
+                                         MqOutboxMapper mqOutboxMapper) {
         RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
         rabbitTemplate.setMessageConverter(messageConverter);
-        // 到了 Exchange 但路由不到任何队列时会被退回，默认静默丢弃；这里必须把它暴露出来
-        rabbitTemplate.setReturnsCallback(returned ->
-                log.error("消息无法路由到队列已被退回：exchange={}, routingKey={}, replyText={}",
-                        returned.getExchange(), returned.getRoutingKey(), returned.getReplyText()));
-        // ack=false 表示消息根本没进到 Exchange（Broker 挂了/网络抖动）
+        // 到了 Exchange 但路由不到任何队列时会被退回，默认静默丢弃；这里必须把它暴露出来。
+        // 关键：Broker 对这种情况的 confirm 是 ack（它确实收到了），所以必须把这个"假成功"
+        // 纠正回来——把 outbox 记录重置为待投递，否则消息会被标记成已发送而实际无人接收。
+        rabbitTemplate.setReturnsCallback(returned -> {
+            log.error("消息无法路由到队列已被退回：exchange={}, routingKey={}, replyText={}",
+                    returned.getExchange(), returned.getRoutingKey(), returned.getReplyText());
+            Long outboxId = parseOutboxId(returned.getMessage());
+            if (outboxId != null) {
+                mqOutboxMapper.markReturned(outboxId,
+                        LocalDateTime.now().plusSeconds(30),
+                        "无法路由到队列: " + returned.getReplyText());
+            }
+        });
+        // ack=false 表示消息根本没进到 Exchange（Broker 挂了/网络抖动）。
+        // 投递任务本身会同步等 confirm 并在 nack 时安排重试，这里只做兜底日志与状态校正，
+        // 覆盖"投递任务已经放弃等待、confirm 之后才到"的迟到回调。
         rabbitTemplate.setConfirmCallback((correlationData, ack, cause) -> {
             if (!ack) {
                 log.error("消息未到达 Broker，需要补偿重发：correlationData={}, cause={}",
                         correlationData == null ? null : correlationData.getId(), cause);
+                Long outboxId = correlationData == null ? null : parseOutboxId(correlationData.getId());
+                if (outboxId != null) {
+                    mqOutboxMapper.markReturned(outboxId,
+                            LocalDateTime.now().plusSeconds(30),
+                            "Broker nack: " + cause);
+                }
             }
         });
         return rabbitTemplate;
+    }
+
+    /** outbox 投递时把主键塞进 CorrelationData，这里解析回来定位记录 */
+    private static Long parseOutboxId(String correlationId) {
+        if (correlationId == null) {
+            return null;
+        }
+        try {
+            return Long.valueOf(correlationId);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** 从消息属性里取回 outbox 主键（投递时写进了 messageId） */
+    private static Long parseOutboxId(Message message) {
+        return message == null ? null : parseOutboxId(message.getMessageProperties().getMessageId());
     }
 
     @Bean
