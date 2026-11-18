@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { cartApi, orderApi, couponApi } from '@/api/compat'
 import { formatPrice } from '@/utils/format'
+import { getProvinces, getCities, getDistricts, buildFullAddress } from '@/utils/region'
 import CountUp from '@/components/CountUp.vue'
 
 const router = useRouter()
@@ -85,10 +86,58 @@ onMounted(load)
 /* ==================== 结算弹窗（收货信息 + 优惠券，沿用原项目下单流程） ==================== */
 const dlg = ref(false)
 const submiting = ref(false)
-const form = reactive({ receiverName: '', receiverPhone: '', receiverAddress: '', note: '' })
+const form = reactive({
+  receiverName: '',
+  receiverPhone: '',
+  province: '',
+  city: '',
+  district: '',
+  detail: '',
+  note: ''
+})
 const showCouponDialog = ref(false)
 const availableCoupons = ref([])
 const selectedCoupon = ref(null)
+
+/* ---- 省 / 市 / 区三级联动 ---- */
+const provinces = getProvinces()
+const cities = computed(() => (form.province ? getCities(form.province) : []))
+const districts = computed(() =>
+  form.province && form.city ? getDistricts(form.province, form.city) : []
+)
+
+/** 选省后重置市/区；选市后重置区 */
+function onProvinceChange() {
+  form.city = ''
+  form.district = ''
+}
+
+function onCityChange() {
+  form.district = ''
+}
+
+/** 拼成后端接收的完整地址串 */
+const fullAddress = computed(() =>
+  buildFullAddress({
+    province: form.province,
+    city: form.city,
+    district: form.district,
+    detail: form.detail
+  })
+)
+
+/* ---- 手机号实时校验 ---- */
+const phoneTouched = ref(false)
+/** 输入中实时校验：非 11 位就在输入框下红字提醒 */
+const phoneError = computed(() => {
+  const p = (form.receiverPhone || '').trim()
+  if (!p) return ''
+  if (!/^1[3-9]\d{9}$/.test(p)) return '请输入正确的 11 位手机号'
+  return ''
+})
+function onPhoneInput() {
+  phoneTouched.value = true
+}
 
 const orderTotal = computed(() =>
   selectedItems.value.reduce((s, i) => s + i.price * i.num, 0)
@@ -139,12 +188,13 @@ function formatTime(time) {
 }
 
 async function confirmOrder() {
-  if (!form.receiverName || !form.receiverPhone || !form.receiverAddress) {
-    ElMessage.warning('\u8bf7\u586b\u5199\u5b8c\u6574\u6536\u8d27\u4fe1\u606f')
+  phoneTouched.value = true
+  if (!form.receiverName || !form.province || !form.city || !form.district || !form.detail.trim()) {
+    ElMessage.warning('请填写完整收货信息（省 / 市 / 区 / 详细地址）')
     return
   }
-  if (!/^1[3-9]\d{9}$/.test(form.receiverPhone)) {
-    ElMessage.warning('\u8bf7\u8f93\u5165\u6b63\u786e\u7684 11 \u4f4d\u624b\u673a\u53f7')
+  if (phoneError.value) {
+    ElMessage.warning(phoneError.value)
     return
   }
   submiting.value = true
@@ -153,27 +203,51 @@ async function confirmOrder() {
       cartItemIds: selectedItems.value.map((i) => i.id),
       receiverName: form.receiverName,
       receiverPhone: form.receiverPhone,
-      receiverAddress: form.receiverAddress,
+      receiverAddress: fullAddress.value,
       note: form.note
     }
     if (selectedCoupon.value) {
       orderData.couponId = selectedCoupon.value.id
       orderData.couponUserId = selectedCoupon.value.id
     }
-    await orderApi.create(orderData)
-    ElMessage.success('\u4e0b\u5355\u6210\u529f')
+    const res = await orderApi.create(orderData)
+    const newOrder = res?.data || res || {}
+    // 记住本次收货信息，供秒杀等“直接购买”场景免填复用
+    try {
+      localStorage.setItem('defaultReceiver', JSON.stringify({
+        receiverName: form.receiverName,
+        receiverPhone: form.receiverPhone,
+        receiverAddress: fullAddress.value
+      }))
+    } catch (e) { /* localStorage 不可用时忽略 */ }
+    ElMessage.success('下单成功，请完成支付')
     dlg.value = false
     selectedCoupon.value = null
-    form.receiverName = ''
-    form.receiverPhone = ''
-    form.receiverAddress = ''
-    form.note = ''
-    router.push('/orders')
+    resetForm()
+    await load() // 刷新购物车（下单的商品已从购物车扣除）
+
+    // 下单后转至支付页（在支付页里跳支付宝沙箱），带上订单号方便返回后定位
+    const orderId = newOrder.id || newOrder.orderId
+    router.push({
+      path: '/pay',
+      query: orderId ? { orderId, from: 'checkout' } : { from: 'checkout' }
+    })
   } catch (e) {
     /* 统一错误提示 */
   } finally {
     submiting.value = false
   }
+}
+
+function resetForm() {
+  form.receiverName = ''
+  form.receiverPhone = ''
+  form.province = ''
+  form.city = ''
+  form.district = ''
+  form.detail = ''
+  form.note = ''
+  phoneTouched.value = false
 }
 </script>
 
@@ -292,11 +366,57 @@ async function confirmOrder() {
           <el-form-item label="收货人">
             <el-input v-model="form.receiverName" placeholder="请输入收货人姓名" />
           </el-form-item>
-          <el-form-item label="电话">
-            <el-input v-model="form.receiverPhone" placeholder="请输入11位手机号" maxlength="11" />
+
+          <!-- 电话：输入不满 11 位立刻在输入框下方红字提示（用 el-form-item 自带 error 渲染，避免重复） -->
+          <el-form-item label="电话" :error="phoneTouched ? phoneError : ''">
+            <el-input
+              v-model="form.receiverPhone"
+              placeholder="请输入 11 位手机号"
+              maxlength="11"
+              @input="onPhoneInput"
+              @blur="phoneTouched = true"
+            />
           </el-form-item>
-          <el-form-item label="地址">
-            <el-input v-model="form.receiverAddress" placeholder="请输入详细地址" />
+
+          <!-- 收货地址：先选省 → 再选市 → 再选区 → 最后写详细地址 -->
+          <el-form-item label="所在地区" class="region-item">
+            <div class="region-row">
+              <el-select
+                v-model="form.province"
+                placeholder="省份"
+                filterable
+                @change="onProvinceChange"
+              >
+                <el-option v-for="p in provinces" :key="p" :label="p" :value="p" />
+              </el-select>
+              <el-select
+                v-model="form.city"
+                placeholder="城市"
+                filterable
+                :disabled="!form.province"
+                @change="onCityChange"
+              >
+                <el-option v-for="c in cities" :key="c" :label="c" :value="c" />
+              </el-select>
+              <el-select
+                v-model="form.district"
+                placeholder="区县"
+                filterable
+                :disabled="!form.city"
+              >
+                <el-option v-for="d in districts" :key="d" :label="d" :value="d" />
+              </el-select>
+            </div>
+          </el-form-item>
+
+          <el-form-item label="详细地址">
+            <el-input
+              v-model="form.detail"
+              type="textarea"
+              :rows="2"
+              placeholder="街道、门牌号、小区、楼栋等详细地址"
+            />
+            <p v-if="fullAddress" class="address-preview">收货地址：{{ fullAddress }}</p>
           </el-form-item>
 
           <el-form-item label="优惠券">
@@ -956,5 +1076,32 @@ async function confirmOrder() {
 
 .check-icon {
   color: var(--pine-700);
+}
+
+/* ---------------- 收货地址 / 手机号校验 ---------------- */
+.region-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.region-row .el-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.region-item :deep(.el-form-item__content) {
+  flex-wrap: wrap;
+}
+
+.address-preview {
+  margin: 5px 0 0;
+  padding: 6px 9px;
+  border: 1px dashed var(--line-strong);
+  background: var(--paper-warm);
+  color: var(--sage);
+  font-size: 12px;
+  line-height: 1.5;
+  width: 100%;
 }
 </style>

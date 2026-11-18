@@ -36,6 +36,7 @@ public class JwtInterceptor implements HandlerInterceptor {
             "/product/page/query",
             "/product/category",
             "/product/status",
+            "/product/seckill",
             "/category/list",
             "/category/children",
             "/category/level",

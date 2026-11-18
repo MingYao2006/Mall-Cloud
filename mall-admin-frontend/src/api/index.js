@@ -76,7 +76,10 @@ export const productApi = {
     const formData = new FormData()
     formData.append('file', file)
     return request.post('/product/upload/image', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      // 图片要经 BFF -> 商品服务 -> 阿里云 OSS 外网，DNS/网络抖动时可能耗时数十秒，
+      // 单独放宽到 120s，避免被全局 15s 超时掐断（后端最终上传成功但前端报错）。
+      timeout: 120000
     })
   }
 }

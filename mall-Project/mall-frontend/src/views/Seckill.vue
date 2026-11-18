@@ -37,8 +37,8 @@
             <div class="sk-info">
               <p class="sk-name">{{ item.name }}</p>
               <div class="sk-price">
-                <span class="sk-current price">¥{{ item.seckillPrice || item.price?.toFixed(2) }}</span>
-                <span class="sk-original">¥{{ item.price?.toFixed(2) }}</span>
+                <span class="sk-current price">¥{{ Number(item.seckillPrice).toFixed(2) }}</span>
+                <span class="sk-original">¥{{ Number(item.price).toFixed(2) }}</span>
               </div>
               <div class="sk-progress">
                 <div class="sk-bar">
@@ -69,7 +69,8 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { seckillApi, productApi } from '@/api'
-import { ElMessage } from 'element-plus'
+import { orderApi } from '@/api/compat'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -98,13 +99,14 @@ const startCountdown = () => {
 const loadSeckillProducts = async () => {
   loading.value = true
   try {
-    // 使用热门商品模拟秒杀
-    const res = await productApi.getPage(1, 12)
+    // 秒杀价由后端 /product/seckill 权威返回（与下单时后端重算的规则一致），
+    // 不再在前端用 Math.random() 现编，避免页面价与订单价不一致。
+    const res = await productApi.getSeckillList(1, 12)
     const products = (res.data?.list || res.data?.records || []).map(p => ({
       ...p,
-      seckillPrice: (p.price * 0.5 + Math.random() * p.price * 0.3).toFixed(2),
-      seckillStock: Math.floor(Math.random() * 100) + 10,
-      seckillSold: Math.floor(Math.random() * 80)
+      seckillPrice: Number(p.seckillPrice),
+      seckillStock: p.stock || 100,
+      seckillSold: Math.floor((p.sales || 0) % 80)
     }))
     seckillProducts.value = products
   } catch (e) {
@@ -130,18 +132,57 @@ const goDetail = (item) => {
   router.push(`/product/${item.id}`)
 }
 
+/** 读取结算页记住的收货信息 */
+const getReceiver = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('defaultReceiver') || 'null')
+    if (saved && saved.receiverName && saved.receiverPhone && saved.receiverAddress) return saved
+  } catch (e) { /* ignore */ }
+  return null
+}
+
 const handleBuy = async (item) => {
   if (!userStore.token) {
     ElMessage.warning('请先登录')
     router.push('/login')
     return
   }
+
+  // 没有收货信息时，先要求去购物车填写一次（结算页会自动记住）
+  let receiver = getReceiver()
+  if (!receiver) {
+    try {
+      await ElMessageBox.confirm(
+        '首次抢购需要先填写收货地址（在购物车结算一次后会自动记住），是否前往购物车？',
+        '缺少收货信息',
+        { type: 'warning', confirmButtonText: '去填写', cancelButtonText: '取消' }
+      )
+      router.push('/cart')
+    } catch (e) { /* 用户取消 */ }
+    return
+  }
+
   buyingId.value = item.id
   try {
-    // 模拟秒杀请求
-    await new Promise(resolve => setTimeout(resolve, 800))
-    ElMessage.success('秒杀成功！请尽快下单')
-    router.push(`/product/${item.id}`)
+    // 直接按商品下单（后端 CreateOrderRequest 支持 productId + quantity 直购）
+    const res = await orderApi.create({
+      productId: item.id,
+      quantity: 1,
+      // 只传秒杀标记，不传价格：由后端用 SeckillPriceUtil 重算，防止前端篡改
+      seckill: true,
+      receiverName: receiver.receiverName,
+      receiverPhone: receiver.receiverPhone,
+      receiverAddress: receiver.receiverAddress,
+      note: '秒杀订单'
+    })
+    const newOrder = res?.data || res || {}
+    const orderId = newOrder.id || newOrder.orderId
+    ElMessage.success('抢购成功，请完成支付')
+    // 直接进入支付页；支付成功后订单自动出现在「我的订单」
+    router.push({
+      path: '/pay',
+      query: orderId ? { orderId, from: 'seckill' } : { from: 'seckill' }
+    })
   } catch (e) {
     ElMessage.error('秒杀失败，请重试')
   } finally {

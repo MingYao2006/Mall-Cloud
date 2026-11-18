@@ -216,21 +216,31 @@ onMounted(load)
         </header>
 
         <div class="order-body">
+          <!-- 逐条展示订单里的商品 -->
           <div class="order-goods">
-            <div class="og-img">
-              <img
-                v-if="o.goodsPic"
-                :src="o.goodsPic"
-                :alt="o.goodsTitle"
-                loading="lazy"
-                @error="o.goodsPic = ''"
-              />
-              <span v-else>{{ (o.goodsTitle || '商').slice(0, 1) }}</span>
+            <div v-for="item in (o.items && o.items.length ? o.items : [{
+              title: o.goodsTitle, image: o.goodsPic, num: o.goodsNum, price: 0
+            }])" :key="item.id || item.productId || item.title" class="og-item">
+              <div class="og-img">
+                <img
+                  v-if="item.image"
+                  :src="item.image"
+                  :alt="item.title"
+                  loading="lazy"
+                  @error="item.image = ''"
+                />
+                <span v-else>{{ (item.title || '商').slice(0, 1) }}</span>
+              </div>
+              <div class="og-info">
+                <p class="og-title" :title="item.title">{{ item.title }}</p>
+                <p class="og-num">
+                  {{ formatPrice(item.price) }} × {{ item.num }}
+                </p>
+              </div>
             </div>
-            <div class="og-info">
-              <p class="og-title" :title="o.goodsTitle">{{ o.goodsTitle }}</p>
-              <p class="og-num">共 {{ o.goodsNum }} 件</p>
-            </div>
+            <p v-if="o.items && o.items.length > 1" class="og-sum">
+              共 {{ o.goodsNum }} 件商品
+            </p>
           </div>
 
           <div class="order-amount">
@@ -411,8 +421,23 @@ onMounted(load)
   flex: 1;
   min-width: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: 12px 16px;
+}
+
+.og-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.og-sum {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--text-hint);
+  font-size: 12px;
 }
 
 .og-img {

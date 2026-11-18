@@ -3,6 +3,7 @@ package com.mall.order.service;
 import com.mall.common.BusinessException;
 import com.mall.common.PageResult;
 import com.mall.common.Result;
+import com.mall.common.SeckillPriceUtil;
 import com.mall.common.vo.HotProductItem;
 import com.mall.common.vo.SalesTrendItem;
 import com.mall.common.vo.StatsOverviewVO;
@@ -94,10 +95,11 @@ public class OrderService {
             // 从购物车创建订单
             orderItems = createOrderItemsFromCart(request.getCartItemIds());
         } else if (request.getProductId() != null) {
-            // 直接购买单个商品
+            // 直接购买单个商品：秒杀订单由后端用统一规则重算秒杀价（前端不传价格，防篡改）
             OrderItem item = createOrderItemFromProduct(
                     request.getProductId(),
-                    request.getQuantity() != null ? request.getQuantity() : 1
+                    request.getQuantity() != null ? request.getQuantity() : 1,
+                    Boolean.TRUE.equals(request.getSeckill())
             );
             orderItems.add(item);
         } else {
@@ -161,7 +163,11 @@ public class OrderService {
             throw e;
         }
 
-        // 9. 超时关单不在这里发延迟消息。
+        // 9. 清除订单列表缓存：getOrdersByUserId 会把用户订单列表缓存在 Redis，
+        //    下单后若不失效，"我的订单"会一直读旧缓存，导致新订单（及订单商品）看不到。
+        invalidateOrderListCache(request.getUserId() != null ? request.getUserId() : order.getUserId());
+
+        // 10. 超时关单不在这里发延迟消息。
         //    超时关单的事实来源是 orders 表本身（status=0 且 create_time 超时），
         //    由 OrderTimeoutTask 定时扫表驱动；MQ 延迟消息只是"更早发现"的优化，
         //    一旦它成为唯一依据，就会出现"发消息前宕机 → 订单永久卡待支付、库存永久占用"。
@@ -220,8 +226,9 @@ public class OrderService {
                 throw new BusinessException(400, "购物车项不存在：" + cartItemId);
             }
 
-            //调用openfeign服务
-            Result<Product> result = productServiceFeignClient.findById(cart.getId());
+            // 调用 openfeign 查询商品：必须用购物车项的 productId，
+            // 之前误用 cart.getId()（购物车记录ID），导致购物车下单查不到商品或查错商品。
+            Result<Product> result = productServiceFeignClient.findById(cart.getProductId());
             Product product = result.getData();
 
             if (product == null) {
@@ -255,7 +262,7 @@ public class OrderService {
     /**
      * 直接购买单个商品 - 创建订单项
      */
-    private OrderItem createOrderItemFromProduct(Long productId, Integer quantity) {
+    private OrderItem createOrderItemFromProduct(Long productId, Integer quantity, boolean seckill) {
         // 1. 查询商品信息
         Result<Product> result = productServiceFeignClient.findById(productId);
         Product product = result.getData();
@@ -273,14 +280,20 @@ public class OrderService {
             throw new BusinessException(400, "商品【" + product.getName() + "】库存不足，当前库存：" + product.getStock());
         }
 
-        // 4. 创建订单项
+        // 4. 定价：秒杀订单用与聚合层 /product/seckill 完全一致的规则重算，
+        //    普通直购用原价。前端不参与定价，页面展示价与订单价必然一致。
+        BigDecimal unitPrice = seckill
+                ? SeckillPriceUtil.compute(product.getId(), product.getPrice())
+                : product.getPrice();
+
+        // 5. 创建订单项
         OrderItem item = new OrderItem();
         item.setProductId(product.getId());
         item.setProductName(product.getName());
         item.setProductImage(product.getMainImage());
-        item.setProductPrice(product.getPrice());
+        item.setProductPrice(unitPrice);
         item.setQuantity(quantity);
-        item.setTotalPrice(product.getPrice().multiply(new BigDecimal(quantity)));
+        item.setTotalPrice(unitPrice.multiply(new BigDecimal(quantity)));
 
         return item;
     }
@@ -723,6 +736,9 @@ public class OrderService {
                 "order.cancel.resource.exchange",
                 "order.cancel.resource.key",
                 OrderCancelService.buildRestoreMessage(orderId, orderItems));
+        // 8. 失效订单列表 + 详情缓存，保证「我的订单」与订单详情立即显示已取消
+        invalidateOrderListCache(order.getUserId());
+        invalidateOrderDetailCache(orderId);
     }
 
     /**
@@ -786,6 +802,9 @@ public class OrderService {
         // 5. 支付成功消息与状态更新在同一个本地事务内入 outbox：
         //    业务回滚则消息记录一起回滚，业务提交则消息一定待发，不会"回滚了但已通知下游"
         enqueuePaymentMessage(orderId, order.getUserId(), order.getOrderNo(), order.getPayAmount());
+        // 6. 失效订单列表 + 详情缓存，保证轮询 GET /orders/{id} 能立刻看到已支付
+        invalidateOrderListCache(order.getUserId());
+        invalidateOrderDetailCache(orderId);
     }
 
 
@@ -842,6 +861,10 @@ public class OrderService {
             return; // 已支付 / 已取消，幂等处理
         }
         enqueuePaymentMessage(order.getId(), order.getUserId(), order.getOrderNo(), order.getPayAmount());
+        // 支付宝回调改完状态后必须失效列表 + 详情缓存，
+        // 否则小程序轮询 GET /orders/{id} 在 5 分钟内仍读到旧的 status=0。
+        invalidateOrderListCache(order.getUserId());
+        invalidateOrderDetailCache(order.getId());
     }
 
 
@@ -930,6 +953,50 @@ public class OrderService {
     /**
      * 将Order转换为OrderVO
      */
+    /**
+     * 失效用户的订单列表缓存
+     *
+     * getOrdersByUserId 把订单列表缓存 30 分钟，且下单前查过空列表时还会写 null 标记。
+     * 因此下单、支付、取消等改变订单状态/数量的操作都必须主动清缓存，
+     * 否则「我的订单」在缓存过期前一直是旧数据：
+     *   - 下单后看不到新订单（及订单商品）
+     *   - 支付宝回调把订单改成已支付后，列表仍显示「待支付」
+     *
+     * 缓存清理失败不阻断主流程，最多让用户多等一个缓存周期。
+     */
+    private void invalidateOrderListCache(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        try {
+            redisService.delete(ORDER_CACHE_KEY + "list:" + userId);
+            redisService.delete(ORDER_CACHE_KEY + "null:" + userId);
+        } catch (Exception e) {
+            System.err.println("清除订单列表缓存失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 失效单个订单的详情缓存
+     *
+     * getOrderByOrderId 把订单详情缓存 5 分钟，key 为 "select:order:{orderId}"。
+     * 小程序结果页/列表页/详情页都靠 GET /orders/{id} 轮询支付状态：
+     * 下单后首次查询会把 status=0 写进详情缓存，支付宝回调把数据库改成 status=1 后，
+     * 如果这里不失效详情缓存，轮询会连续 5 分钟读到旧的 status=0，
+     * 导致「支付成功」永远检测不到、返回后仍显示「等待支付」。
+     */
+    private void invalidateOrderDetailCache(Long orderId) {
+        if (orderId == null) {
+            return;
+        }
+        try {
+            redisService.delete("select:order:" + orderId);
+            redisService.delete("select:order:null:" + orderId);
+        } catch (Exception e) {
+            System.err.println("清除订单详情缓存失败: " + e.getMessage());
+        }
+    }
+
     private OrderVO convertToOrderVO(Order order) {
         OrderVO vo = new OrderVO();
         vo.setId(order.getId());

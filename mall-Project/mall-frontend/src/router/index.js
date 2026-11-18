@@ -66,6 +66,12 @@ const routes = [
     meta: { title: '限时秒杀' }
   },
   {
+    path: '/pay',
+    name: 'Pay',
+    component: () => import('@/views/Pay.vue'),
+    meta: { title: '订单支付', requiresAuth: true }
+  },
+  {
     path: '/pay-result',
     name: 'PayResult',
     component: () => import('@/views/PayResult.vue'),

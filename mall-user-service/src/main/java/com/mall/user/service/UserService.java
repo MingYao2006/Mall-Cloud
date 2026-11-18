@@ -565,11 +565,13 @@ public class UserService {
 
             // 7. 更新用户头像 URL
             String avatarUrl = "/uploads/avatar/" + newFilename;
-            LambdaUpdateWrapper<User> updateWrapper = new LambdaUpdateWrapper<>();
-            updateWrapper.eq(User::getId, userId)
-                    .set(User::getAvatar, avatarUrl);
-
-            int rows = userMapper.update(null, updateWrapper);
+            // 用 updateById 而不是 update(wrapper)：MyBatis 二级缓存（cache-enabled=true）下，
+            // wrapper 更新不会清空 selectById 的缓存，导致 /users/info 一直返回旧头像。
+            // updateById 会刷新一级/二级缓存，保证立刻读到新头像。
+            User update = new User();
+            update.setId(userId);
+            update.setAvatar(avatarUrl);
+            int rows = userMapper.updateById(update);
 
             if (rows > 0) {
                 // 落库成功后再清理旧头像，失败只记日志：换头像不该因为删不掉旧文件而报错

@@ -143,6 +143,69 @@ export const productApi = {
       pages: Math.ceil(filtered.length / pageSize) || 1
     }
   },
+  /**
+   * 多条件筛选（分类页筛选面板用）
+   *
+   * 后端 POST /product/page/query 支持 categoryId / minPrice / maxPrice /
+   * orderBy / orderType / keyword / status。
+   * 注意：分类筛选需要带上子分类，所以这里先在前端把分类展开成 id 集合，
+   * 再逐个分类 id 分别查询后合并——后端一次查询只能接受单个 categoryId。
+   *
+   * @param {Object} params
+   *   - categoryId  分类 id
+   *   - minPrice / maxPrice  价格区间
+   *   - orderBy / orderType  排序
+   *   - keyword     关键词
+   *   - pageNum / pageSize   分页
+   */
+  filteredPage: async (params = {}) => {
+    const {
+      categoryId = null, minPrice = null, maxPrice = null,
+      orderBy = null, orderType = 'desc', keyword = '',
+      pageNum = 1, pageSize = 10
+    } = params
+
+    const query = { pageNum: 1, pageSize: 500, status: 1 }
+    if (minPrice != null) query.minPrice = minPrice
+    if (maxPrice != null) query.maxPrice = maxPrice
+    if (orderBy) {
+      query.orderBy = orderBy
+      query.orderType = orderType
+    }
+    const kw = String(keyword || '').trim()
+    if (kw) query.keyword = kw
+
+    let all = []
+    if (categoryId != null && categoryId !== '') {
+      // 分类要含子分类：后端一次只能查一个分类 id，这里分别查再合并
+      const ids = await descendantCategoryIds(categoryId)
+      for (const id of ids) {
+        const res = unwrap(await rawProduct.getPageByCondition({ ...query, categoryId: id }))
+        all = all.concat((res?.list || res?.records || []).map(adaptProduct))
+      }
+    } else {
+      const res = unwrap(await rawProduct.getPageByCondition(query))
+      all = (res?.list || res?.records || []).map(adaptProduct)
+    }
+
+    // 同一商品可能命中多个分类（父子分类），按 id 去重
+    const seen = new Set()
+    all = all.filter((p) => {
+      if (seen.has(p.id)) return false
+      seen.add(p.id)
+      return true
+    })
+
+    const start = (pageNum - 1) * pageSize
+    const records = all.slice(start, start + pageSize)
+    return {
+      records,
+      list: records,
+      total: all.length,
+      pageNum,
+      pages: Math.ceil(all.length / pageSize) || 1
+    }
+  },
   spuDetail: async (id) => adaptProduct(unwrap(await rawProduct.getDetail(id))),
   categoryTree: async () => buildTree(unwrap(await rawCategory.getList())),
   categoryList: async () => buildTree(unwrap(await rawCategory.getList()))
@@ -216,12 +279,23 @@ const ORDER_STATUS = { 0: '待支付', 1: '已支付', 2: '已发货', 3: '已�
 
 function adaptOrder(o) {
   if (!o) return null
-  const items = o.orderItems || o.items || []
+  const items = (o.orderItems || o.items || []).map((i) => ({
+    id: i.id,
+    productId: i.productId,
+    title: i.productName || i.title || '',
+    image: i.productImage || i.image || '',
+    price: num(i.productPrice != null ? i.productPrice : i.price),
+    num: i.quantity || i.num || 0,
+    quantity: i.quantity || i.num || 0,
+    totalPrice: num(i.totalPrice)
+  }))
   return {
     ...o,
-    goodsTitle: items.length ? items[0].productName : (o.goodsTitle || ''),
-    goodsPic: items.length ? items[0].productImage : (o.goodsPic || ''),
-    goodsNum: items.reduce((s, i) => s + (i.quantity || 0), 0) || o.goodsNum || 0,
+    /** 完整商品明细，订单页逐条展示 */
+    items,
+    goodsTitle: items.length ? items[0].title : (o.goodsTitle || ''),
+    goodsPic: items.length ? items[0].image : (o.goodsPic || ''),
+    goodsNum: items.reduce((s, i) => s + (i.num || 0), 0) || o.goodsNum || 0,
     totalAmount: num(o.totalAmount),
     payAmount: num(o.payAmount != null ? o.payAmount : o.totalAmount),
     statusText: o.statusDesc || ORDER_STATUS[o.status] || '未知状态',

@@ -64,6 +64,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             "/api/c/product/page/query",
             "/api/c/product/category",
             "/api/c/product/status",
+            "/api/c/product/seckill",
             // 分类浏览（只读）
             "/api/c/category/list",
             "/api/c/category/children",

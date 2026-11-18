@@ -49,4 +49,9 @@ public class CreateOrderRequest {
      * 支付方式：1-微信，2-支付宝，3-银行卡
      */
     private Integer paymentType;
+
+    /**
+     * 是否秒杀订单（直接购买时生效），由订单服务权威定价
+     */
+    private Boolean seckill;
 }

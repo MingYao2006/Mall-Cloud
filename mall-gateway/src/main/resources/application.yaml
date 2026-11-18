@@ -39,6 +39,11 @@ spring:
             - Path=/api/admin/**
           filters:
             - StripPrefix=2    # /api/admin/product → /product
+          # 商品图片上传经 BFF -> 商品服务 -> 阿里云 OSS 外网，可能超过全局 30s，
+          # 对该路由放宽到 120s（普通请求不受影响，仍受 httpclient 全局超时约束）。
+          metadata:
+            response-timeout: 120s
+            connect-timeout: 3000
 
         # ============ 支付宝回调（公共路由，不经过鉴权） ============
         - id: payment-notify

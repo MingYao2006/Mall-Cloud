@@ -59,4 +59,11 @@ public class CreateOrderRequest {
      * 支付方式：1-微信，2-支付宝，3-银行卡
      */
     private Integer paymentType;
+
+    /**
+     * 是否秒杀订单（直接购买时生效）。
+     * 为 true 时订单服务用 SeckillPriceUtil 按商品 ID 重算秒杀价，
+     * 前端不传价格，避免篡改；false / null 走普通原价。
+     */
+    private Boolean seckill;
 }

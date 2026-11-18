@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { productApi, searchApi, cartApi } from '@/api/compat'
@@ -16,7 +16,10 @@ const goodsList = ref([])
 const categories = ref([])
 const total = ref(0)
 const pageNum = ref(1)
-const pageSize = 8
+/** 今日货架每页 16 条 */
+const pageSize = 16
+/** 下滑加载中（与筛选/首屏的 loading 区分，避免出骨架） */
+const loadingMore = ref(false)
 const loading = ref(false)
 const showSkeleton = ref(false)
 const hasLoaded = ref(false)
@@ -24,6 +27,11 @@ const keyword = ref('')
 const categoryId = ref(null)
 const categoryName = ref('')
 let skeletonTimer = null
+
+/** 今日橱窗：轮播展示的商品 */
+const showcaseProducts = ref([])
+const showcaseIndex = ref(0)
+let showcaseTimer = null
 
 const services = [
   { icon: 'Goods', title: '正品保障', desc: '官方授权，假一赔十' },
@@ -35,6 +43,26 @@ const services = [
 const searching = computed(() => !!keyword.value.trim())
 
 const filtering = computed(() => categoryId.value != null)
+
+/** 搜索结果的价格分类（与「全部分类」页一致） */
+const PRICE_RANGES = {
+  all: { label: '不限', minPrice: null, maxPrice: null },
+  '0-100': { label: '100元以下', minPrice: null, maxPrice: 100 },
+  '100-500': { label: '100-500元', minPrice: 100, maxPrice: 500 },
+  '500-1000': { label: '500-1000元', minPrice: 500, maxPrice: 1000 },
+  '1000-5000': { label: '1000-5000元', minPrice: 1000, maxPrice: 5000 },
+  '5000-10000': { label: '5000-10000元', minPrice: 5000, maxPrice: 10000 },
+  '10000-': { label: '10000元以上', minPrice: 10000, maxPrice: null }
+}
+const priceRange = ref('all')
+
+/** 切换价格分类：重置到第 1 页并重新加载 */
+function selectPriceRange(key) {
+  if (priceRange.value === key) return
+  priceRange.value = key
+  pageNum.value = 1
+  loadGoods(false)
+}
 
 const sectionTitle = computed(() => {
   if (searching.value) return `“${keyword.value}” 的搜索结果`
@@ -48,28 +76,59 @@ const subtitle = computed(() => {
   return '从日用百货里，挑几件顺手的'
 })
 
-const heroProduct = computed(() => goodsList.value[0] || null)
-
-const heroPrice = computed(() =>
-  heroProduct.value ? formatPrice(heroProduct.value.minPrice) : '¥799'
-)
-
-/** 列表标识：筛选条件变化时触发列表整体淡入淡出 */
+/** 列表标识：仅筛选条件变化时触发列表整体淡入淡出（翻页追加不触发） */
 const listKey = computed(
-  () => `${categoryId.value ?? 'all'}-${keyword.value || 'all'}-${pageNum.value}`
+  () => `${categoryId.value ?? 'all'}-${keyword.value || 'all'}`
 )
 
-async function loadGoods() {
-  loading.value = true
+/** 今日橱窗轮播：定时切换当前商品 */
+function startShowcaseTimer() {
+  stopShowcaseTimer()
+  showcaseTimer = window.setInterval(() => {
+    if (showcaseProducts.value.length > 1) {
+      showcaseIndex.value = (showcaseIndex.value + 1) % showcaseProducts.value.length
+    }
+  }, 4000)
+}
 
-  // 首次加载直接出骨架；后续筛选/翻页只在超过 250ms 时才出骨架，避免快接口闪一下
-  clearTimeout(skeletonTimer)
-  if (hasLoaded.value) {
-    skeletonTimer = window.setTimeout(() => {
-      showSkeleton.value = true
-    }, 250)
+function stopShowcaseTimer() {
+  if (showcaseTimer) {
+    window.clearInterval(showcaseTimer)
+    showcaseTimer = null
+  }
+}
+
+/** 鼠标悬停橱窗时暂停轮播，方便看清商品 */
+function pauseShowcase() {
+  stopShowcaseTimer()
+}
+
+function resumeShowcase() {
+  startShowcaseTimer()
+}
+
+function onShowcaseChange(index) {
+  showcaseIndex.value = index
+}
+
+/**
+ * 拉取货架数据
+ * @param {boolean} append true=追加到现有列表末尾（下滑翻页用），false=重新加载
+ */
+async function loadGoods(append = false) {
+  if (append) {
+    loadingMore.value = true
   } else {
-    showSkeleton.value = true
+    loading.value = true
+    // 首次加载直接出骨架；后续筛选只在超过 250ms 时才出骨架，避免快接口闪一下
+    clearTimeout(skeletonTimer)
+    if (hasLoaded.value) {
+      skeletonTimer = window.setTimeout(() => {
+        showSkeleton.value = true
+      }, 250)
+    } else {
+      showSkeleton.value = true
+    }
   }
 
   try {
@@ -77,31 +136,66 @@ async function loadGoods() {
     let data
 
     if (searching.value) {
-      params.key = keyword.value.trim()
-      data = await searchApi.search(params)
+      // 搜索结果按价格分类：走多条件分页接口，keyword + 价格区间
+      const price = PRICE_RANGES[priceRange.value] || PRICE_RANGES.all
+      data = await productApi.filteredPage({
+        pageNum: pageNum.value,
+        pageSize,
+        keyword: keyword.value.trim(),
+        minPrice: price.minPrice,
+        maxPrice: price.maxPrice
+      })
     } else {
-      // 按分类筛选：商品表已冗余 category1Id，直接用它查
       if (categoryId.value != null) params.category1Id = categoryId.value
       data = await productApi.spuPage(params)
     }
 
-    goodsList.value = data?.records || []
+    const records = data?.records || []
+    // 追加时按 id 去重，避免重复项
+    if (append) {
+      const seen = new Set(goodsList.value.map((g) => g.id))
+      goodsList.value = goodsList.value.concat(records.filter((g) => !seen.has(g.id)))
+    } else {
+      goodsList.value = records
+    }
     total.value = data?.total || 0
   } catch (e) {
-    goodsList.value = []
-    total.value = 0
+    if (!append) {
+      goodsList.value = []
+      total.value = 0
+    }
   } finally {
     clearTimeout(skeletonTimer)
     loading.value = false
+    loadingMore.value = false
     showSkeleton.value = false
     hasLoaded.value = true
+  }
+}
+
+/** 下滑加载下一页：把下页商品追加到本页下方，不替换、不清空、不跳回顶部 */
+function loadMore() {
+  if (loading.value || loadingMore.value) return
+  if (pageNum.value * pageSize >= total.value) return
+  pageNum.value += 1
+  loadGoods(true)
+}
+
+/** 加载今日橱窗的商品：取前若干件做轮播 */
+async function loadShowcase() {
+  try {
+    const data = await productApi.spuPage({ pageNum: 1, pageSize: 8 })
+    showcaseProducts.value = data?.records || []
+    showcaseIndex.value = 0
+    startShowcaseTimer()
+  } catch (e) {
+    showcaseProducts.value = []
   }
 }
 
 async function loadCategories() {
   try {
     const data = await productApi.categoryTree()
-    // 首页只取前 7 个：货架导视依次填满 4 列 × 3 行（1 大 + 4 小 + 2 宽），其余在 /category 展示
     categories.value = Array.isArray(data) ? data.slice(0, 7) : []
   } catch (e) {
     categories.value = []
@@ -110,19 +204,6 @@ async function loadCategories() {
 
 function goDetail(id) {
   router.push(`/product/${id}`)
-}
-
-function goCategory(category) {
-  // 再次点击同一个分类 → 取消筛选
-  if (filtering.value && categoryId.value === Number(category.id)) {
-    router.push({ path: '/home' })
-    return
-  }
-  // 按分类 ID 筛选（不再把分类名当搜索关键词）
-  router.push({
-    path: '/home',
-    query: { categoryId: category.id, categoryName: category.name }
-  })
 }
 
 function clearFilter() {
@@ -152,15 +233,27 @@ function scrollToCategory() {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-function onPageChange(page) {
-  pageNum.value = page
-  loadGoods()
-  scrollToRecommend()
+/**
+ * 滚动到底自动加载下一页
+ *
+ * 下页商品追加到本页下方（不清空、不跳回顶部），
+ * 用户滚动位置保持不变，体验连续。
+ */
+function onScroll() {
+  if (loading.value || loadingMore.value) return
+  const doc = document.documentElement
+  const scrollTop = window.scrollY || doc.scrollTop
+  const viewport = window.innerHeight
+  const full = doc.scrollHeight
+  if (scrollTop + viewport >= full - 200) {
+    loadMore()
+  }
 }
 
 /** 从路由参数同步筛选条件（关键词 / 分类） */
 function syncFromQuery() {
   keyword.value = route.query.key || route.query.keyword || ''
+  priceRange.value = 'all'
   const cid = route.query.categoryId || route.query.category
   categoryId.value = cid ? Number(cid) : null
   categoryName.value = route.query.categoryName || ''
@@ -179,13 +272,21 @@ onMounted(() => {
   syncFromQuery()
   loadCategories()
   loadGoods()
+  loadShowcase()
+  window.addEventListener('scroll', onScroll, { passive: true })
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', onScroll)
+  stopShowcaseTimer()
+  clearTimeout(skeletonTimer)
 })
 </script>
 
 <template>
   <div class="home">
-    <!-- 橱窗：首屏只做一件事，让“集物”的货架感先立住 -->
-    <section class="shopfront">
+    <!-- 橱窗：首屏只做一件事，让“集物”的货架感先立住（搜索时只显示商品） -->
+    <section v-if="!searching" class="shopfront">
       <div class="container shopfront-inner">
         <div class="shopfront-copy">
           <p v-reveal class="shopfront-kicker">
@@ -225,39 +326,79 @@ onMounted(() => {
           </div>
         </div>
 
-        <div v-reveal="120" class="shopwindow">
+        <div
+          v-reveal="120"
+          class="shopwindow"
+          @mouseenter="pauseShowcase"
+          @mouseleave="resumeShowcase"
+        >
           <div class="window-topline">
             <span>今日橱窗</span>
             <span>从货架上取一件</span>
           </div>
 
-          <div
-            class="window-body"
-            :class="{ 'is-empty': !heroProduct }"
-            role="link"
-            :tabindex="heroProduct ? 0 : -1"
-            @click="heroProduct && goDetail(heroProduct.id)"
-            @keydown.enter="heroProduct && goDetail(heroProduct.id)"
+          <!-- 橱窗轮播：多件商品自动旋转切换 -->
+          <el-carousel
+            v-if="showcaseProducts.length"
+            class="window-carousel"
+            :interval="4000"
+            :duration="600"
+            arrow="hover"
+            indicator-position="none"
+            height="360px"
+            @change="onShowcaseChange"
           >
-            <div class="window-image">
-              <img
-                v-if="heroProduct?.mainImage"
-                :src="heroProduct.mainImage"
-                :alt="heroProduct.name"
-              />
-              <span v-else class="window-glyph" aria-hidden="true">集</span>
-            </div>
+            <el-carousel-item v-for="item in showcaseProducts" :key="item.id">
+              <div
+                class="window-body"
+                role="link"
+                :tabindex="0"
+                @click="goDetail(item.id)"
+                @keydown.enter="goDetail(item.id)"
+              >
+                <div class="window-image">
+                  <img v-if="item.mainImage" :src="item.mainImage" :alt="item.name" />
+                  <span v-else class="window-glyph" aria-hidden="true">集</span>
+                </div>
 
+                <div class="window-caption">
+                  <div class="wc-copy">
+                    <p class="wc-brand">{{ item.brandName || '集物严选' }}</p>
+                    <p class="wc-name">{{ item.name }}</p>
+                  </div>
+                  <p class="wc-price">¥{{ formatPrice(item.minPrice) }}</p>
+                </div>
+
+                <span class="window-seal" aria-hidden="true">集</span>
+              </div>
+            </el-carousel-item>
+          </el-carousel>
+
+          <div v-else class="window-body is-empty">
+            <div class="window-image">
+              <span class="window-glyph" aria-hidden="true">集</span>
+            </div>
             <div class="window-caption">
               <div class="wc-copy">
-                <p class="wc-brand">{{ heroProduct?.brandName || '集物严选' }}</p>
-                <p class="wc-name">{{ heroProduct?.name || '今日好物正在上架' }}</p>
+                <p class="wc-brand">集物严选</p>
+                <p class="wc-name">今日好物正在上架</p>
               </div>
-              <p v-if="heroProduct" class="wc-price">{{ heroPrice }}</p>
-              <span v-else class="wc-status">待上架</span>
+              <span class="wc-status">待上架</span>
             </div>
-
             <span class="window-seal" aria-hidden="true">集</span>
+          </div>
+
+          <!-- 轮播指示点 -->
+          <div v-if="showcaseProducts.length > 1" class="window-dots">
+            <button
+              v-for="(item, i) in showcaseProducts"
+              :key="'dot-' + item.id"
+              type="button"
+              class="window-dot"
+              :class="{ active: showcaseIndex === i }"
+              :aria-label="`第 ${i + 1} 件`"
+              @click="showcaseIndex = i"
+            />
           </div>
 
           <div class="window-shelf" aria-hidden="true"></div>
@@ -265,8 +406,8 @@ onMounted(() => {
       </div>
     </section>
 
-    <!-- 店铺承诺：深色营业条，给货架一点重量 -->
-    <section class="service-ribbon">
+    <!-- 店铺承诺：深色营业条，给货架一点重量（搜索时只显示商品） -->
+    <section v-if="!searching" class="service-ribbon">
       <div class="container service-ribbon-inner">
         <div class="service-title">
           <span>店铺承诺</span>
@@ -287,41 +428,26 @@ onMounted(() => {
     </section>
 
     <div class="container">
-      <!-- 货架导视：Bento 信息结构保留，视觉改成百货导视牌 -->
-      <section v-if="categories.length" id="category" class="block category-block">
-        <SectionHeader
-          v-reveal
-          title="货架导视"
-          subtitle="先选一类，再慢慢看"
-          more-text="看全部分类"
-          more-to="/category"
-        />
-
-        <div class="bento-grid">
-          <button
-            v-for="(c, i) in categories"
-            :key="c.id"
-            type="button"
-            class="bento-item"
-            :class="{ 'is-lead': i === 0 }"
-            @click="goCategory(c)"
-          >
-            <span class="bento-ghost" aria-hidden="true">{{ (c.name || '分').slice(0, 1) }}</span>
-            <span class="bento-code">{{ i === 0 ? '主货架' : 'A' + String(i + 1).padStart(2, '0') }}</span>
-            <span class="bento-info">
-              <span class="bento-name">{{ c.name }}</span>
-              <span v-if="i === 0" class="bento-desc">本周主推，先从这一类逛起</span>
-            </span>
-            <span class="bento-arrow">
-              <el-icon :size="13"><ArrowRight /></el-icon>
-            </span>
-          </button>
-        </div>
-      </section>
-
       <!-- 今日货架 -->
       <section id="recommend" class="block goods-block">
         <SectionHeader v-reveal :title="sectionTitle" :subtitle="subtitle" />
+
+        <!-- 搜索结果：按价格分类（与「全部分类」页一致），仅显示商品 -->
+        <div v-if="searching" class="search-price-filter">
+          <span class="spf-label">价格分类</span>
+          <div class="spf-options">
+            <button
+              v-for="(opt, key) in PRICE_RANGES"
+              :key="key"
+              type="button"
+              class="spf-item"
+              :class="{ active: priceRange === key }"
+              @click="selectPriceRange(key)"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+        </div>
 
         <div v-if="searching || filtering" class="filter-note">
           <span>正在查看{{ searching ? '搜索结果' : '分类商品' }}，共 {{ total }} 件</span>
@@ -361,15 +487,18 @@ onMounted(() => {
           </el-empty>
         </transition>
 
-        <div v-if="!loading && total > pageSize" class="pagination">
-          <el-pagination
-            background
-            layout="prev, pager, next"
-            :total="total"
-            :page-size="pageSize"
-            :current-page="pageNum"
-            @current-change="onPageChange"
-          />
+        <!-- 下滑加载更多：下页商品追加到本页下方 -->
+        <div v-if="!loading && goodsList.length" class="load-more">
+          <button
+            v-if="goodsList.length < total"
+            type="button"
+            class="load-more-btn"
+            :disabled="loadingMore"
+            @click="loadMore"
+          >
+            {{ loadingMore ? '加载中…' : '下滑或点击加载更多' }}
+          </button>
+          <p v-else class="load-more-end">— 已经到底啦，共 {{ total }} 件商品 —</p>
         </div>
       </section>
     </div>
@@ -560,6 +689,64 @@ onMounted(() => {
   font-weight: 600;
 }
 
+/* 橱窗轮播 */
+.window-carousel {
+  margin-top: 14px;
+}
+
+.window-carousel :deep(.el-carousel__container) {
+  border-radius: 2px;
+}
+
+.window-carousel :deep(.el-carousel__arrow) {
+  background-color: rgba(22, 58, 46, 0.45);
+  width: 30px;
+  height: 30px;
+}
+
+/* 轮播里的卡片要撑满 carousel-item 的高度 */
+.window-carousel :deep(.el-carousel__item) {
+  height: 100%;
+}
+
+.window-carousel .window-body {
+  height: 100%;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.window-carousel .window-image {
+  flex: 1;
+  min-height: 0;
+}
+
+/* 轮播指示点 */
+.window-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.window-dot {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(22, 58, 46, 0.2);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.window-dot.active {
+  width: 20px;
+  border-radius: 4px;
+  background: var(--gold);
+}
+
 .window-body {
   position: relative;
   margin-top: 14px;
@@ -603,12 +790,15 @@ onMounted(() => {
 .window-image img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* contain：完整展示商品，不裁切；留白用底色补齐 */
+  object-fit: contain;
+  padding: 10px;
+  box-sizing: border-box;
   transition: transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .window-body:hover .window-image img {
-  transform: scale(1.035);
+  transform: scale(1.03);
 }
 
 .window-glyph {
@@ -976,6 +1166,54 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
+/* 搜索结果价格分类栏 */
+.search-price-filter {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.spf-label {
+  flex-shrink: 0;
+  color: var(--pine-800);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.spf-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.spf-item {
+  padding: 5px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--text-body);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.spf-item:hover {
+  border-color: var(--pine-700);
+  color: var(--pine-700);
+}
+
+.spf-item.active {
+  border-color: var(--pine-800);
+  background: var(--pine-800);
+  color: #fff;
+}
+
 .filter-note {
   display: flex;
   flex-wrap: wrap;
@@ -1062,10 +1300,42 @@ onMounted(() => {
   }
 }
 
-.pagination {
+.load-more {
   display: flex;
   justify-content: center;
-  margin-top: 36px;
+  margin-top: 34px;
+}
+
+.load-more-btn {
+  min-width: 220px;
+  padding: 12px 32px;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--paper);
+  color: var(--pine-700);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.load-more-btn:hover:not(:disabled) {
+  border-color: var(--pine-700);
+  background: var(--brand-soft);
+  color: var(--pine-800);
+}
+
+.load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.load-more-end {
+  margin: 0;
+  color: var(--text-hint);
+  font-size: 12px;
+  letter-spacing: 0.04em;
 }
 
 /* ---------------- 响应式 ---------------- */

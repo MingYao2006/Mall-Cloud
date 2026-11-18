@@ -90,7 +90,9 @@ export const productApi = {
     // 分页查询商品
     getPage: (pageNum = 1, pageSize = 10) => request.get('/product/page', {params: {pageNum, pageSize}}),
     // 条件组合分页查询
-    getPageByCondition: (params) => request.post('/product/page/query', params)
+    getPageByCondition: (params) => request.post('/product/page/query', params),
+    // 秒杀商品列表（含后端权威秒杀价 seckillPrice）
+    getSeckillList: (pageNum = 1, pageSize = 12) => request.get('/product/seckill', {params: {pageNum, pageSize}})
 }
 
 export const categoryApi = {

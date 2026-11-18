@@ -2,13 +2,19 @@ package com.mall.controller;
 
 import com.mall.common.PageResult;
 import com.mall.common.Result;
+import com.mall.common.SeckillPriceUtil;
 import com.mall.entity.Product;
+import com.mall.entity.query.ProductQuery;
 import com.mall.feign.ProductServiceFeignClient;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 商品Controller - C端聚合服务（客户端版）
@@ -87,6 +93,84 @@ public class ProductController {
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize) {
         return productService.listProductsByPage(pageNum, pageSize);
+    }
+
+    /**
+     * 条件组合分页查询
+     * POST /product/page/query
+     *
+     * C 端商品列表页的筛选（分类 / 价格区间 / 排序）依赖这个接口。
+     * 网关白名单已放行 /api/c/product/page/query。
+     */
+    @Operation(summary = "条件组合分页查询")
+    @PostMapping("/page/query")
+    public Result<PageResult> listProductsByCondition(@RequestBody ProductQuery query) {
+        return productService.listProductsByCondition(query);
+    }
+
+    /**
+     * 秒杀商品列表（权威定价）
+     *
+     * <p>秒杀价由 {@link SeckillPriceUtil} 按商品 ID 稳定计算，前端只负责展示，
+     * 下单时也由订单服务用同一规则重算，保证「页面价 = 订单商品价 = 实付金额」。
+     * 返回列表结构与 /product/page 一致，额外给每条附带 seckillPrice 字段。
+     */
+    @Operation(summary = "秒杀商品列表（含权威秒杀价）")
+    @GetMapping("/seckill")
+    public Result<PageResult> listSeckillProducts(
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "12") Integer pageSize) {
+        Result<PageResult> pageResult = productService.listProductsByPage(pageNum, pageSize);
+        PageResult page = pageResult == null ? null : pageResult.getData();
+        if (page == null || page.getList() == null) {
+            return pageResult == null ? Result.success(new PageResult(pageNum, pageSize, 0L, new ArrayList<>())) : pageResult;
+        }
+
+        List<Map<String, Object>> enriched = new ArrayList<>();
+        for (Object obj : page.getList()) {
+            // Feign 反序列化后元素可能是 Product，也可能是 LinkedHashMap（泛型丢失），两种都要兼容
+            Long id;
+            BigDecimal price;
+            Map<String, Object> row = new LinkedHashMap<>();
+            if (obj instanceof Product) {
+                Product p = (Product) obj;
+                id = p.getId();
+                price = p.getPrice();
+                row.put("id", p.getId());
+                row.put("name", p.getName());
+                row.put("price", p.getPrice());
+                row.put("originalPrice", p.getOriginalPrice() != null ? p.getOriginalPrice() : p.getPrice());
+                row.put("mainImage", p.getMainImage());
+                row.put("brand", p.getBrand());
+                row.put("categoryId", p.getCategoryId());
+                row.put("status", p.getStatus());
+                row.put("stock", p.getStock());
+                row.put("sales", p.getSales());
+            } else if (obj instanceof Map) {
+                Map<?, ?> src = (Map<?, ?>) obj;
+                row.putAll((Map<String, Object>) src);
+                Object idVal = src.get("id");
+                Object priceVal = src.get("price");
+                id = idVal instanceof Number ? ((Number) idVal).longValue() : null;
+                price = priceVal instanceof Number
+                        ? BigDecimal.valueOf(((Number) priceVal).doubleValue())
+                        : (priceVal != null ? new BigDecimal(priceVal.toString()) : null);
+                // 原价字段统一补齐，前端划线价用得到
+                if (!row.containsKey("originalPrice")) {
+                    row.put("originalPrice", src.get("originalPrice") != null ? src.get("originalPrice") : priceVal);
+                }
+            } else {
+                continue;
+            }
+            if (id == null || price == null) {
+                continue;
+            }
+            row.put("seckillPrice", SeckillPriceUtil.compute(id, price));
+            enriched.add(row);
+        }
+
+        PageResult out = new PageResult(pageNum, pageSize, page.getTotal(), enriched);
+        return Result.success(out);
     }
 
     /**

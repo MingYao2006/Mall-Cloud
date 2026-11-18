@@ -22,6 +22,14 @@ spring:
         register-enabled: true
         username: nacos
         password: ${NACOS_PASSWORD:nacos}
+    # Feign 调用下游（含 multipart 图片上传经商品服务转发到阿里云 OSS），
+    # 显式放宽读超时，避免默认 60s 在 OSS 抖动时被触发；连接超时保持 10s。
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 10000
+            read-timeout: 120000
   data:
     redis:
       host: localhost
