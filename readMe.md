@@ -8,13 +8,29 @@
 
 ### C 端商城
 
-| 首页 | 限时秒杀 |
+| 首页：今日橱窗轮播 | 今日货架（16 件/页，下滑续接） |
 |---|---|
-| ![C 端首页](docs/screenshots/c-home.webp) | ![限时秒杀](docs/screenshots/c-seckill.webp) |
+| ![C 端首页](docs/screenshots/c-home.webp) | ![今日货架](docs/screenshots/c-home-grid.webp) |
 
-| AI 智能导购 | 购物车与结算 |
+| 全部分类：多条件筛选 | 搜索结果：只出商品 + 价格分类 |
 |---|---|
-| ![AI 智能导购](docs/screenshots/c-ai-guide.webp) | ![购物车与结算](docs/screenshots/c-cart.webp) |
+| ![全部分类](docs/screenshots/c-category.webp) | ![搜索结果](docs/screenshots/c-search.webp) |
+
+| 限时秒杀 | 购物车与结算（省市区三级联动） |
+|---|---|
+| ![限时秒杀](docs/screenshots/c-seckill.webp) | ![购物车与结算](docs/screenshots/c-cart.webp) |
+
+| 订单支付（支付宝沙箱） | 我的订单（逐条展示商品） |
+|---|---|
+| ![订单支付](docs/screenshots/c-pay.webp) | ![我的订单](docs/screenshots/c-orders.webp) |
+
+| AI 智能导购 | |
+|---|---|
+| ![AI 智能导购](docs/screenshots/c-ai-guide.webp) | |
+
+> 结算弹窗是「省份 → 城市 → 区县 → 详细地址」三级联动，手机号不足 11 位会在输入框下方即时红字提示（不等提交）；
+> 下单后跳转支付页，选支付宝沙箱付款，从沙箱返回后订单落在「我的订单」，订单卡片逐条列出所购商品。
+> 秒杀页的秒杀价由后端按商品 ID 统一计算，与订单商品价、实付金额一致。
 
 ### B 端管理后台
 
